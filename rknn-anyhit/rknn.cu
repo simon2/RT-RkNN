@@ -89,6 +89,11 @@ extern "C" __global__ void __miss__ms()
 
 extern "C" __global__ void __closesthit__ch()
 {
+    /* No closesthit program logic needed */
+}
+
+extern "C" __global__ void __anyhit__ah()
+{
     // get obj data from sbt
     HitGroupData* hit_data  = reinterpret_cast<HitGroupData*>( optixGetSbtDataPointer() );
 
@@ -107,9 +112,4 @@ extern "C" __global__ void __closesthit__ch()
         optixSetPayload_1(cnt);
         optixIgnoreIntersection();
     }
-}
-
-extern "C" __global__ void __anyhit__ah()
-{
-    /* No anyhit program logic needed */
 }

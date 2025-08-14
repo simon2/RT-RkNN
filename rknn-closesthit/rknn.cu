@@ -53,28 +53,40 @@ extern "C" __global__ void __raygen__rg()
     // Set ray to parallel ray projection
     float3 ray_origin, ray_direction;
     int2 ray_coord = params.ray_coords[ix];
-    ray_origin = { (float)ray_coord.x, (float)ray_coord.y, 0.f };
+
     ray_direction = { 0.f, 0.f, 1.f };
 
     // Initialize payloads
-    uint32_t rslt = 1;      // 1 means "the q is my knn"
-    uint32_t cnt = 0;
+    uint32_t rslt   = 1;      // 1 means "the q is my knn"
+    uint32_t cnt    = 0;
+    float    depth  = 0.0f;   // hit position
+    uint32_t flag   = 1;
 
-    optixTrace(
-        params.handle,
-        ray_origin,
-        ray_direction,
-        0.0f,                // Min intersection distance
-        1e16f,               // Max intersection distance
-        0.0f,                // rayTime -- used for motion blur
-        OptixVisibilityMask( 255 ), // Specify always visible
-        OPTIX_RAY_FLAG_NONE,
-        SURFACE_RAY_TYPE,    // SBT offset   -- See SBT discussion
-        RAY_TYPE_COUNT,      // SBT stride   -- See SBT discussion
-        SURFACE_RAY_TYPE,    // missSBTIndex -- See SBT discussion
-        rslt,                // Payload 0
-        cnt                  // Payload 1
-    );
+    while ( flag )
+    {
+        ray_origin = { (float)ray_coord.x, (float)ray_coord.y, depth };
+        uint32_t payload_depth = __float_as_uint( depth );
+
+        optixTrace(
+            params.handle,
+            ray_origin,
+            ray_direction,
+            0.0f,                // Min intersection distance
+            1e16f,               // Max intersection distance
+            0.0f,                // rayTime -- used for motion blur
+            OptixVisibilityMask( 255 ), // Specify always visible
+            OPTIX_RAY_FLAG_NONE,
+            SURFACE_RAY_TYPE,    // SBT offset   -- See SBT discussion
+            RAY_TYPE_COUNT,      // SBT stride   -- See SBT discussion
+            SURFACE_RAY_TYPE,    // missSBTIndex -- See SBT discussion
+            rslt,                // Payload 0
+            cnt,                 // Payload 1
+            payload_depth,       // Payload 2
+            flag                 // Payload 3
+        );
+
+        depth += __uint_as_float( payload_depth );
+    }
 
     // Record results in our output raster
     params.rslt[ix] = rslt;
@@ -83,34 +95,27 @@ extern "C" __global__ void __raygen__rg()
 
 extern "C" __global__ void __miss__ms()
 {
-    /* No miss program logic needed */
+    optixSetPayload_3( 0 );     // flag
 }
 
 
 extern "C" __global__ void __closesthit__ch()
 {
-    /* No closesthit program logic needed */
-}
-
-extern "C" __global__ void __anyhit__ah()
-{
     // get obj data from sbt
     HitGroupData* hit_data  = reinterpret_cast<HitGroupData*>( optixGetSbtDataPointer() );
 
-    // setting cost
-    uint32_t cnt = optixGetPayload_1();
-
+    // setting count, flag and result
     if ( params.q == hit_data->far_id ) {
+        uint32_t cnt = optixGetPayload_1();
         cnt++;
-    }
-    if (cnt >= params.k) {
-        optixSetPayload_0( 0 );
-        optixTerminateRay();
-    }
-    else
-    {
         optixSetPayload_1(cnt);
-        optixIgnoreIntersection();
+    }
+    if (cnt > params.k) {
+        optixSetPayload_0( 0 ); // result
+        optixSetPayload_3( 0 ); // flag
     }
 
+    // setting ray start point
+    float ray_t = optixGetRayTmax();
+    optixSetPayload_2( __float_as_uint(ray_t) );
 }

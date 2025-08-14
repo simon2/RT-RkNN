@@ -538,7 +538,7 @@ int main( int argc, char* argv[] )
                 md_indices[meshID] = d_indices;
                 
                 // Our build input is a simple list of non-indexed triangle vertices
-                triangle_input_flags[meshID] = OPTIX_GEOMETRY_FLAG_REQUIRE_SINGLE_ANYHIT_CALL;
+                triangle_input_flags[meshID] = OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
 
                 triangle_inputs[meshID] = {};
                 triangle_inputs[meshID].type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
@@ -618,7 +618,7 @@ int main( int argc, char* argv[] )
 
             pipeline_compile_options.usesMotionBlur        = false;
             pipeline_compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-            pipeline_compile_options.numPayloadValues      = 2;
+            pipeline_compile_options.numPayloadValues      = 4;
             pipeline_compile_options.numAttributeValues    = 2;
 #ifdef DEBUG // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
             pipeline_compile_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_DEBUG | OPTIX_EXCEPTION_FLAG_TRACE_DEPTH | OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
@@ -681,8 +681,6 @@ int main( int argc, char* argv[] )
             hitgroup_prog_group_desc.kind                         = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
             hitgroup_prog_group_desc.hitgroup.moduleCH            = module;
             hitgroup_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
-            hitgroup_prog_group_desc.hitgroup.moduleAH            = module;
-            hitgroup_prog_group_desc.hitgroup.entryFunctionNameAH = "__anyhit__ah";
             OPTIX_CHECK_LOG( optixProgramGroupCreate(
                         context,
                         &hitgroup_prog_group_desc,

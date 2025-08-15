@@ -65,7 +65,7 @@ extern "C" __global__ void __raygen__rg()
         ray_origin,
         ray_direction,
         0.0f,                // Min intersection distance
-        1e16f,               // Max intersection distance
+        params.depth,               // Max intersection distance
         0.0f,                // rayTime -- used for motion blur
         OptixVisibilityMask( 255 ), // Specify always visible
         OPTIX_RAY_FLAG_NONE,

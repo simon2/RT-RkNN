@@ -46,6 +46,7 @@ struct Params
     uint32_t        q;    
     uint32_t        width;
     uint32_t        height;
+    float           depth;
     OptixTraversableHandle handle;
 };
 

@@ -443,6 +443,7 @@ int main( int argc, char* argv[] )
             }
         }
         end_time = get_wall_time();
+        cout << "Depth of the scene: " << z << endl;
         cout << "Scene constructed in " << end_time - start_time << "[s]." << endl << endl;
 
         //
@@ -812,6 +813,7 @@ int main( int argc, char* argv[] )
             params.q            = fac_id_list[q];
             params.width        = usr_cnt;
             params.height       = 1;
+            params.depth        = (float)z + 1.0f;
             params.handle       = gas_handle;
 
             CUdeviceptr d_param;

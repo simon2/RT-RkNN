@@ -87,7 +87,7 @@ static void context_log_cb( unsigned int level, const char* tag, const char* mes
 /* custom functions */
 void print_reslt(uint32_t* rslt, uint32_t usr_list[], uint32_t width, uint32_t height)
 {
-    printf("COST_RSLT: \n");
+    // printf("COST_RSLT: \n");
     uint32_t candidate_cnt = 0;
     for (uint32_t i = 0; i < height; i++) 
     {
@@ -101,7 +101,7 @@ void print_reslt(uint32_t* rslt, uint32_t usr_list[], uint32_t width, uint32_t h
         }
         printf("\n");
     }
-    printf("Total candidates: %d\n", candidate_cnt);
+    printf("Total users: %d\n", candidate_cnt);
     printf("\n\n");
 }
 

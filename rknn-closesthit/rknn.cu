@@ -72,7 +72,7 @@ extern "C" __global__ void __raygen__rg()
             ray_origin,
             ray_direction,
             0.0f,                // Min intersection distance
-            1e16f,               // Max intersection distance
+            2.0f,               // Max intersection distance
             0.0f,                // rayTime -- used for motion blur
             OptixVisibilityMask( 255 ), // Specify always visible
             OPTIX_RAY_FLAG_NONE,
@@ -109,10 +109,10 @@ extern "C" __global__ void __closesthit__ch()
         uint32_t cnt = optixGetPayload_1();
         cnt++;
         optixSetPayload_1(cnt);
-    }
-    if (cnt > params.k) {
-        optixSetPayload_0( 0 ); // result
-        optixSetPayload_3( 0 ); // flag
+        if (cnt > params.k) {
+            optixSetPayload_0( 0 ); // result
+            optixSetPayload_3( 0 ); // flag
+        }
     }
 
     // setting ray start point

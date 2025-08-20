@@ -120,6 +120,6 @@ void TriangleMesh::addRectangle(float2 lt, float2 rb, uint32_t z)
 //
 // structs and functions for validation and evaluation
 //
-void print_reslt(uint32_t* rslt, uint32_t usr_list[], uint32_t width, uint32_t height);
+void print_reslt(uint32_t* rslt, Point* usr_list, uint32_t width, uint32_t height);
 
 double get_wall_time();

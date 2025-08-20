@@ -35,19 +35,18 @@ def main():
         min_y = min(pt[2] for pt in data)
         data = [(vid, x - min_x, y - min_y) for (vid, x, y) in data]
 
-    k = 1000  # predetermined length
+    k = 200  # predetermined length
     facility_list = random.sample(data, k)  # randomly choose k items
     user_list = [item for item in data if item not in facility_list]
     
-    with open("NY_fac_1k.co", "w") as f1:
+    with open("NY_fac_200.co", "w") as f1:
         f1.write(f"{len(facility_list)}\n")
         for vid, x, y in facility_list:
             f1.write(f"{vid} {x} {y}\n")
-
-    with open("NY_usr_1k.co", "w") as f2:
-        f2.write(f"{len(user_list)}\n")
+        f1.write(f"{len(user_list)}\n")
         for vid, x, y in user_list:
-            f2.write(f"{vid} {x} {y}\n")
+            f1.write(f"{vid} {x} {y}\n")
+
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,7 @@
 // define a structure to represent a point in 2D space with an ID
 typedef struct {
     uint32_t id;
-    int x, y;
+    uint32_t x, y;
 } Point;
 
 float cal_dist(Point a, Point b) {

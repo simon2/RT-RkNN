@@ -85,7 +85,7 @@ static void context_log_cb( unsigned int level, const char* tag, const char* mes
 }
 
 /* custom functions */
-void print_reslt(uint32_t* rslt, uint32_t usr_list[], uint32_t width, uint32_t height)
+void print_reslt(uint32_t* rslt, Point* usr_list, uint32_t width, uint32_t height)
 {
     // printf("COST_RSLT: \n");
     uint32_t candidate_cnt = 0;
@@ -206,9 +206,6 @@ int main( int argc, char* argv[] )
     {
         //
         // loading data
-        // data format requires: 
-        // first line contains number of points
-        // followed by lines of id and x, y coordinates in the format: id x y\n
         //
         cout << "Loading data..." << endl;
 
@@ -219,74 +216,48 @@ int main( int argc, char* argv[] )
             cerr << "Error opening file: " << infile_path << endl;
             exit(1);
         }
+        
+        uint32_t fac_cnt;
+        infile >> fac_cnt;
 
-        // get the number of points in the file
-        int num_points;
-        infile >> num_points;
+        Point *fac = new Point[fac_cnt];
 
-        Point *points = new Point[num_points];
-
-        for (int i = 0; i < num_points; ++i) 
+        for (uint32_t i = 0; i < fac_cnt; ++i) 
         {
-            infile >> points[i].id;
-            infile >> points[i].x;
-            infile >> points[i].y;
+            infile >> fac[i].id;
+            infile >> fac[i].x;
+            infile >> fac[i].y;
         }
 
-        cout << "Loaded " << num_points << " points." << endl;
+        uint32_t usr_cnt;
+        infile >> usr_cnt;
+
+        Point *usr = new Point[usr_cnt];
+
+        for (uint32_t i = 0; i < usr_cnt; ++i) 
+        {
+            infile >> usr[i].id;
+            infile >> usr[i].x;
+            infile >> usr[i].y;
+        }
+
+        cout << "Loaded " << fac_cnt << " facilities and " << usr_cnt << " users." << endl;
         infile.close();
 
-        // Move the range to align it with the x-axis and y-axis.
-        int min_x = points[0].x;
-        int min_y = points[0].y;
-        int max_x = points[0].x;
-        int max_y = points[0].y;
-        for (int i = 1; i < num_points; ++i) 
+        // Get max x and y
+        uint32_t length = fac[0].x;
+        uint32_t height = fac[0].y;
+        for (uint32_t i = 1; i < fac_cnt; ++i) 
         {
-            if (points[i].x < min_x) min_x = points[i].x;
-            if (points[i].y < min_y) min_y = points[i].y;
-            if (points[i].x > max_x) max_x = points[i].x;
-            if (points[i].y > max_y) max_y = points[i].y;
+            if (fac[i].x > length) length = fac[i].x;
+            if (fac[i].y > height) height = fac[i].y;
         }
-        cout << "Minimum X: " << min_x << ", Minimum Y: " << min_y << endl;
-        uint32_t length = max_x - min_x + 1;
-        uint32_t height = max_y - min_y + 1;
+        for (uint32_t i = 0; i < usr_cnt; ++i) 
+        {
+            if (usr[i].x > length) length = usr[i].x;
+            if (usr[i].y > height) height = usr[i].y;
+        }
         cout << "Scene length: " << length << ", Scene height: " << height << endl << endl;
-        // translate points to have the first point at (0,0)
-        for (int i = 0; i < num_points; ++i) 
-        {
-            points[i].x -= min_x;
-            points[i].y -= min_y;
-        }
-
-        Point *usr = new Point[num_points];
-        Point *fac = new Point[num_points];
-
-        uint32_t usr_id_list[num_points];
-        uint32_t fac_id_list[num_points];
-        uint32_t usr_cnt = 0, fac_cnt = 0;
-
-        random_device rd;
-        mt19937 gen(rd());
-        uniform_int_distribution<int> dist(1, 1000);
-
-        for (int i = 0; i < num_points; ++i) {
-            if (dist(gen) == 1) {
-                fac[fac_cnt] = points[i];
-                fac_id_list[fac_cnt] = points[i].id;
-                fac_cnt++;
-            } else {
-                usr[usr_cnt] = points[i];
-                usr_id_list[usr_cnt] = points[i].id;
-                usr_cnt++;
-            }
-        }
-        if (fac_cnt < q)
-        {
-            cerr << "Facilities not enough. facilities: " << fac_cnt << ", querying: " << q << endl;
-            exit(1);
-        }
-        cout << "# Facilities: " << fac_cnt << ", # Users: " << usr_cnt << endl << endl;
 
         // print facilities and users
         // cout << "Facilities array: ";
@@ -807,7 +778,7 @@ int main( int argc, char* argv[] )
             params.rslt         = result_buffer.map();
             params.ray_coords   = d_ray_coords;
             params.k            = k;
-            params.q            = fac_id_list[q];
+            params.q            = fac[q].id;
             params.width        = usr_cnt;
             params.height       = 1;
             params.handle       = gas_handle;
@@ -857,7 +828,7 @@ int main( int argc, char* argv[] )
         //
         // Print results
         //
-        print_reslt(rslt, usr_id_list, usr_cnt, 1);
+        print_reslt(rslt, usr, usr_cnt, 1);
 
         //
         // Cleanup

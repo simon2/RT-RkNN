@@ -259,32 +259,6 @@ int main( int argc, char* argv[] )
         }
         cout << "Scene length: " << length << ", Scene height: " << height << endl << endl;
 
-        // uint32_t usr_id_list[num_points];
-        // uint32_t fac_id_list[num_points];
-        // uint32_t usr_cnt = 0, fac_cnt = 0;
-
-        // random_device rd;
-        // mt19937 gen(rd());
-        // uniform_int_distribution<int> dist(1, 1000);
-
-        // for (int i = 0; i < num_points; ++i) {
-        //     if (dist(gen) == 1) {
-        //         fac[fac_cnt] = points[i];
-        //         fac_id_list[fac_cnt] = points[i].id;
-        //         fac_cnt++;
-        //     } else {
-        //         usr[usr_cnt] = points[i];
-        //         usr_id_list[usr_cnt] = points[i].id;
-        //         usr_cnt++;
-        //     }
-        // }
-        // if (fac_cnt < q)
-        // {
-        //     cerr << "Facilities not enough. facilities: " << fac_cnt << ", querying: " << q << endl;
-        //     exit(1);
-        // }
-        // cout << "# Facilities: " << fac_cnt << ", # Users: " << usr_cnt << endl << endl;
-
         // print facilities and users
         // cout << "Facilities array: ";
         // for (int i = 0; i < fac_cnt; ++i)

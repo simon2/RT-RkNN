@@ -539,6 +539,7 @@ endfunction()
 
 add_subdirectory( rknn-anyhit )
 add_subdirectory( rknn-closesthit )
+add_subdirectory( rknn-tpl )
 
 # Our sutil library.  The rules to build it are found in the subdirectory.
 add_subdirectory(sutil)

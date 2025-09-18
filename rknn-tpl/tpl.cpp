@@ -1,5 +1,3 @@
-#pragma once
-
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -160,43 +158,47 @@ int main( int argc, char* argv[] ) {
         cout << "Loaded " << fac_cnt << " facilities and " << usr_cnt << " users." << endl;
         infile.close();
 
-        // Get max x and y
-        uint32_t length = fac[0].x;
-        uint32_t height = fac[0].y;
-        for (uint32_t i = 1; i < fac_cnt; ++i) 
+        double start_time, end_time;
+
+        // Build R*-Tree
+        cout << "building R*-trees..." << endl;
+        start_time = get_wall_time();
+        RStarTree fac_rtree;
+        RStarTree usr_rtree;
+        for (uint32_t i = 0; i < fac_cnt; ++i) 
         {
-            if (fac[i].x > length) length = fac[i].x;
-            if (fac[i].y > height) height = fac[i].y;
+            fac_rtree.insert(fac[i]);
         }
         for (uint32_t i = 0; i < usr_cnt; ++i) 
         {
-            if (usr[i].x > length) length = usr[i].x;
-            if (usr[i].y > height) height = usr[i].y;
+            usr_rtree.insert(usr[i]);
         }
-        cout << "Scene length: " << length << ", Scene height: " << height << endl << endl;
+        end_time = get_wall_time();
+
+        cout << "R*-tree is built in " << end_time - start_time << endl << endl;
+
+        // K-nearest neighbors search
+        // int k = 3;
+        cout << "Finding " << k*2 << " nearest neighbors to point ("
+                << fac[q].x << ", " << fac[q].y << "):" << endl;
+        start_time = get_wall_time();
+        auto knn_results = usr_rtree.knn_search(fac[q], k*2);
+        end_time = get_wall_time();
+        cout << "KNN search time: " << end_time - start_time << "[s]." << endl << endl;
+        for (size_t i = 0; i < knn_results.size(); ++i) {
+            const auto& point = knn_results[i];
+            std::cout << (i + 1) << ". Point: (" << point.x << ", " << point.y
+                    << ") ID: " << point.id
+                    << " Distance: " << fac[q].distance_to(point) << std::endl;
+        }
+        cout << endl;
     }
     catch( exception& e )
     {
         cerr << "Caught exception: " << e.what() << "\n";
         return 1;
     }
-    // RStarTree rtree;
 
-    // // Insert some 2D points
-    // rtree.insert(1.0, 1.0, 1);
-    // rtree.insert(2.5, 2.5, 2);
-    // rtree.insert(4.0, 4.0, 3);
-    // rtree.insert(5.5, 5.5, 4);
-    // rtree.insert(3.0, 3.0, 5);
-    // rtree.insert(3.5, 1.0, 6);
-    // rtree.insert(1.0, 4.0, 7);
-    // rtree.insert(7.0, 1.0, 8);
-    // rtree.insert(8.0, 4.0, 9);
-    // rtree.insert(6.0, 6.0, 10);
-
-    // std::cout << "R* Tree structure:" << std::endl;
-    // rtree.print_tree();
-    // std::cout << std::endl;
 
     // // Range search
     // std::cout << "Range search for points in rectangle (2.0, 2.0) to (5.0, 5.0):" << std::endl;

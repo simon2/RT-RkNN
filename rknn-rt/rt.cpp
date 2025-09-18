@@ -53,7 +53,7 @@
 #include <time.h>
 #include <sys/time.h>
 
-#include "rknn.h"
+#include "rt.h"
 
 using namespace std;
 
@@ -601,7 +601,7 @@ int main( int argc, char* argv[] )
             pipeline_compile_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
 
             size_t      inputSize  = 0;
-            const char* input      = sutil::getInputData( OPTIX_SAMPLE_NAME, OPTIX_SAMPLE_DIR, "rknn.cu", inputSize );
+            const char* input      = sutil::getInputData( OPTIX_SAMPLE_NAME, OPTIX_SAMPLE_DIR, "rt.cu", inputSize );
 
             OPTIX_CHECK_LOG( optixModuleCreate(
                         context,

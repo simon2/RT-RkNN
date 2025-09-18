@@ -537,8 +537,7 @@ endfunction()
 # Just make sure you rename all the occurances of the sample's name in the C code as well
 # and the CMakeLists.txt file.
 
-add_subdirectory( rknn-anyhit )
-add_subdirectory( rknn-closesthit )
+add_subdirectory( rknn-rt )
 add_subdirectory( rknn-tpl )
 
 # Our sutil library.  The rules to build it are found in the subdirectory.

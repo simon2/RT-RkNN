@@ -28,7 +28,7 @@
 
 #include <optix.h>
 
-#include "rknn.h"
+#include "rt.h"
 #include <cuda/helpers.h>
 
 #include <sutil/vec_math.h>

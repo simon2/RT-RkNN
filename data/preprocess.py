@@ -29,17 +29,17 @@ def readfile(filename):
     return result
 
 def main():
-    data = readfile("USA-road-d.NY.co")
+    data = readfile("small_random.co")
     if data:
         min_x = min(pt[1] for pt in data)
         min_y = min(pt[2] for pt in data)
         data = [(vid, x - min_x, y - min_y) for (vid, x, y) in data]
 
-    k = 200  # predetermined length
+    k = 20  # predetermined length
     facility_list = random.sample(data, k)  # randomly choose k items
     user_list = [item for item in data if item not in facility_list]
     
-    with open("NY_fac_200.co", "w") as f1:
+    with open("small_random_20.co", "w") as f1:
         f1.write(f"{len(facility_list)}\n")
         for vid, x, y in facility_list:
             f1.write(f"{vid} {x} {y}\n")

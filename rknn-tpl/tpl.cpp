@@ -32,7 +32,8 @@ double get_wall_time()
   return (double)time.tv_sec + (double)time.tv_usec * .000001;
 }
 
-int main( int argc, char* argv[] ) {
+int main( int argc, char* argv[] ) 
+{
     string infile_path;
     string outfile;
     string algorithm_name = "all";
@@ -175,23 +176,30 @@ int main( int argc, char* argv[] ) {
         }
         end_time = get_wall_time();
 
-        cout << "R*-tree is built in " << end_time - start_time << endl << endl;
+        cout << "R*-tree is built in " << end_time - start_time << "[s]." <<  endl << endl;
 
         // K-nearest neighbors search
-        // int k = 3;
         cout << "Finding " << k*2 << " nearest neighbors to point ("
                 << fac[q].x << ", " << fac[q].y << "):" << endl;
         start_time = get_wall_time();
-        auto knn_results = usr_rtree.knn_search(fac[q], k*2);
+        Point query_point(fac[q].x, fac[q].y, fac[q].id);
+        auto knn_results = usr_rtree.knn_search(query_point, k*2);
         end_time = get_wall_time();
         cout << "KNN search time: " << end_time - start_time << "[s]." << endl << endl;
         for (size_t i = 0; i < knn_results.size(); ++i) {
             const auto& point = knn_results[i];
             std::cout << (i + 1) << ". Point: (" << point.x << ", " << point.y
                     << ") ID: " << point.id
-                    << " Distance: " << fac[q].distance_to(point) << std::endl;
+                    << " Distance: " << query_point.distance_to(point) << std::endl;
         }
         cout << endl;
+
+        // Filtering
+        cout << "Filtering..." << endl;
+        start_time = get_wall_time();
+
+        end_time = get_wall_time();
+        cout << "Filtering time: " << end_time - start_time << "[s]." << endl << endl;
     }
     catch( exception& e )
     {

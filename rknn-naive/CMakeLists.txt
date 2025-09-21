@@ -27,11 +27,8 @@
 #
 
 
-OPTIX_add_sample_executable( rknn-rt target_name
-  rt.cpp
-  point.h
-  rt.cu
-  rt.h
+OPTIX_add_sample_executable( rknn-naive target_name
+  rknn.cpp
   )
 
 target_link_libraries( ${target_name}

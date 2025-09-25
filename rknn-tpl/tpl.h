@@ -257,14 +257,14 @@ void dfs_rknn_traverse(shared_ptr<RStarNode> node, const vector<Line>& bisectors
             for (const auto& bisector : bisectors) {
                 if (!bisector.is_on_valid_side(entry.point)) {
                     violations++;
-                    if (violations >= k) {
+                    if (violations > k) {
                         break; // Early termination if violations exceed k
                     }
                 }
             }
 
             // If violations <= k, this point is a candidate
-            if (violations < k) {
+            if (violations <= k) {
                 rknn_candidates.push_back(entry.point);
             }
         }
@@ -277,14 +277,14 @@ void dfs_rknn_traverse(shared_ptr<RStarNode> node, const vector<Line>& bisectors
             for (const auto& bisector : bisectors) {
                 if (can_prune_node_by_valid_side(entry.child, bisector)) {
                     violations++;
-                    if (violations >= k) {
+                    if (violations > k) {
                         break; // Early termination if violations exceed k
                     }
                 }
             }
 
             // If violations <= k, continue DFS on this child
-            if (violations < k) {
+            if (violations <= k) {
                 dfs_rknn_traverse(entry.child, bisectors, rknn_candidates, k);
             }
         }

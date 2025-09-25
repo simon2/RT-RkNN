@@ -173,17 +173,17 @@ int main( int argc, char* argv[] )
             usr_rtree.insert(usr[i]);
         }
         end_time = get_wall_time();
-
         cout << "R*-tree is built in " << end_time - start_time << "[s]." <<  endl << endl;
 
         // K-nearest neighbors search
-        cout << "Finding " << k*2 << " nearest neighbors to point ("
-                << fac[q].x << ", " << fac[q].y << "):" << endl;
+        // cout << "Finding " << k*2 << " nearest neighbors to point ("
+        //         << fac[q].x << ", " << fac[q].y << "):" << endl;
         start_time = get_wall_time();
         Point query_point(fac[q].x, fac[q].y, fac[q].id);
         auto knn_results = fac_rtree.knn_search(query_point, k*2);
-        end_time = get_wall_time();
-        cout << "KNN search time: " << end_time - start_time << "[s]." << endl << endl;
+        // end_time = get_wall_time();
+        // cout << "KNN search time: " << end_time - start_time << "[s]." << endl << endl;
+
         // for (size_t i = 0; i < knn_results.size(); ++i) {
         //     const auto& point = knn_results[i];
         //     cout << (i + 1) << ". Point: (" << point.x << ", " << point.y
@@ -193,8 +193,8 @@ int main( int argc, char* argv[] )
         // cout << endl;
 
         // Filtering
-        cout << "Filtering..." << endl;
-        start_time = get_wall_time();
+        // cout << "Filtering..." << endl;
+        // start_time = get_wall_time();
         vector<Line> bisectors;
         for (size_t i = 0; i < knn_results.size(); ++i) {
             const auto& point = knn_results[i];
@@ -219,13 +219,13 @@ int main( int argc, char* argv[] )
         vector<Point> rknn_candidates;
         get_rknn_candidates(&usr_rtree, bisectors, rknn_candidates, k);
         
-        end_time = get_wall_time();
-        cout << "Found " << rknn_candidates.size() << " RkNN candidates." << endl;
-        cout << "Filtering time: " << end_time - start_time << "[s]." << endl << endl;
+        // end_time = get_wall_time();
+        // cout << "Found " << rknn_candidates.size() << " RkNN candidates." << endl;
+        // cout << "Filtering time: " << end_time - start_time << "[s]." << endl << endl;
 
         // Verification
-        cout << "Verifying..." << endl;
-        start_time = get_wall_time();
+        // cout << "Verifying..." << endl;
+        // start_time = get_wall_time();
         vector<Point> final_rknn;
         for (const auto& candidate : rknn_candidates) {
             auto fac_knn_of_candidate = fac_rtree.knn_search(candidate, k);
@@ -242,28 +242,8 @@ int main( int argc, char* argv[] )
         }
         end_time = get_wall_time();
         cout << "Found " << final_rknn.size() << " RkNN results." << endl;
-        cout << "Verification time: " << end_time - start_time << "[s]." << endl << endl;
-
-        // cout << "Naive RkNN search..." << endl;
-        // start_time = get_wall_time();
-        // vector<Point> naive_rknn;
-        // for (uint32_t i = 0; i < usr_cnt; ++i) {
-        //     const auto& candidate = usr[i];
-        //     auto fac_knn_of_candidate = fac_rtree.knn_search(candidate, k);
-        //     bool found = false;
-        //     for (const auto& neighbor : fac_knn_of_candidate) {
-        //         if (query_point.id == neighbor.id) {
-        //             found = true;
-        //             break;
-        //         }
-        //     }
-        //     if (found) {
-        //         naive_rknn.push_back(candidate);
-        //     }
-        // }
-        // end_time = get_wall_time();
-        // cout << "Naive Found " << naive_rknn.size() << " RkNN results." << endl;
         // cout << "Verification time: " << end_time - start_time << "[s]." << endl << endl;
+        cout << "Total time: " << end_time - start_time << "[s]." << endl << endl;
     }
     catch( exception& e )
     {

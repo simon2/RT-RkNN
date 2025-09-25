@@ -36,13 +36,13 @@ double get_wall_time()
 // 2D Point class
 class Point {
 public:
-    double x, y;
+    int x, y;
     int id;
     
     Point() : x(0), y(0), id(-1) {}
-    Point(double x, double y, int id) : x(x), y(y), id(id) {}
+    Point(int x, int y, int id) : x(x), y(y), id(id) {}
     
-    double distance_to(const Point& other) const {
+    float distance_to(const Point& other) const {
         return sqrt(pow(x - other.x, 2) + pow(y - other.y, 2));
     }
     
@@ -72,7 +72,7 @@ public:
         points.push_back(point);
     }
     
-    void insert(double x, double y, int id) {
+    void insert(int x, int y, int id) {
         points.emplace_back(x, y, id);
     }
     
@@ -83,12 +83,12 @@ public:
     
     // Find k nearest neighbors of a query point (brute force)
     vector<Point> knn_search(const Point& query, int k) const {
-        vector<pair<double, Point>> distances;
+        vector<pair<float, Point>> distances;
 
         // Calculate distances to all points
         for (const auto& point : points) {
             if (point.id != query.id) {  // Exclude the query point itself
-                double dist = query.distance_to(point);
+                float dist = query.distance_to(point);
                 distances.emplace_back(dist, point);
             }
         }
@@ -108,19 +108,19 @@ public:
 
     // Find k nearest neighbors including a specific external point (for reverse k-NN)
     vector<Point> knn_search_with_external(const Point& query, int k, const Point& external_point) const {
-        vector<pair<double, Point>> distances;
+        vector<pair<float, Point>> distances;
 
         // Calculate distances to all points in database
         for (const auto& point : points) {
             if (point.id != query.id) {  // Exclude the query point itself
-                double dist = query.distance_to(point);
+                float dist = query.distance_to(point);
                 distances.emplace_back(dist, point);
             }
         }
 
         // Add the external point if it's different from query
         if (external_point.id != query.id) {
-            double dist = query.distance_to(external_point);
+            float dist = query.distance_to(external_point);
             distances.emplace_back(dist, external_point);
         }
 
@@ -138,7 +138,7 @@ public:
     }
     
     // Range search within a given radius (brute force)
-    vector<Point> range_search(const Point& center, double radius) const {
+    vector<Point> range_search(const Point& center, float radius) const {
         vector<Point> result;
         
         for (const auto& point : points) {
@@ -158,27 +158,37 @@ public:
 // Naive Reverse k-NN implementation
 class NaiveReverseKNN {
 private:
-    NaiveSpatialDB* db;
-    
+    NaiveSpatialDB* user_db;
+    NaiveSpatialDB* facility_db;
+
 public:
-    NaiveReverseKNN(NaiveSpatialDB* database) : db(database) {}
+    NaiveReverseKNN(NaiveSpatialDB* users, NaiveSpatialDB* facilities) : user_db(users), facility_db(facilities) {}
     
     // Method 1: Brute Force Reverse k-NN
-    // For each point in the database, check if the query point is among its k-NN
-    vector<Point> reverse_knn_bruteforce(const Point& query, int k) const {
+    // For each user, check if the query facility is among its k-NN facilities
+    vector<Point> reverse_knn_bruteforce(const Point& query_facility, int k) const {
         vector<Point> result;
-        const auto& all_points = db->get_all_points();
+        const auto& all_users = user_db->get_all_points();
+        const auto& all_facilities = facility_db->get_all_points();
 
-        for (const auto& point : all_points) {
-            if (point.id == query.id) continue;  // Skip query point itself
+        for (const auto& user : all_users) {
+            // Find k-NN facilities for this user
+            vector<pair<float, Point>> distances;
 
-            // Find k-NN of this point, including the query point as a potential neighbor
-            auto knn = db->knn_search_with_external(point, k, query);
+            // Calculate distances to all facilities
+            for (const auto& facility : all_facilities) {
+                float dist = user.distance_to(facility);
+                distances.emplace_back(dist, facility);
+            }
 
-            // Check if query point is among the k-NN
-            for (const auto& neighbor : knn) {
-                if (neighbor.id == query.id) {
-                    result.push_back(point);
+            // Sort by distance and get k nearest facilities
+            sort(distances.begin(), distances.end());
+            int limit = min(k, static_cast<int>(distances.size()));
+
+            // Check if query facility is among the k nearest facilities
+            for (int i = 0; i < limit; ++i) {
+                if (distances[i].second.id == query_facility.id) {
+                    result.push_back(user);
                     break;
                 }
             }
@@ -192,26 +202,6 @@ public:
         return reverse_knn_bruteforce(query, k);
     }
 
-    // Performance test method
-    void test_reverse_knn(const Point& query, int k) const {
-        cout << "\n=== Reverse " << k << "-NN for query point " << query << " ===\n";
-
-        auto start = chrono::high_resolution_clock::now();
-        auto result = reverse_knn_bruteforce(query, k);
-        auto end = chrono::high_resolution_clock::now();
-        auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
-
-        cout << "Brute Force Method: " << result.size() << " results, "
-                  << duration.count() << " μs\n";
-
-        if (!result.empty()) {
-            cout << "Results: ";
-            for (const auto& point : result) {
-                cout << "ID" << point.id << " ";
-            }
-            cout << "\n";
-        }
-    }
 };
 
 // Example usage and testing
@@ -220,8 +210,8 @@ int main( int argc, char* argv[] )
     string infile_path;
     string outfile;
     string algorithm_name = "all";
-    uint32_t k;
-    uint32_t q;
+    uint32_t k = 4;
+    uint32_t q = 0;
 
     for( int i = 1; i < argc; ++i )
     {
@@ -261,8 +251,7 @@ int main( int argc, char* argv[] )
             }
             else
             {
-                cerr << "Missing value for k." << endl;
-                printUsageAndExit( argv[0] );
+                cerr << "Using default value k = 4." << endl;
             }
         }
         else if ( arg == "-q" )
@@ -270,16 +259,15 @@ int main( int argc, char* argv[] )
             if (i < argc - 1 )
             {
                 q = stoi(argv[++i]);
-                if (q <= 0) 
+                if (q < 0) 
                 {
-                    cerr << "Invalid value for q: " << q << ". It must be a positive number." << endl;
+                    cerr << "Invalid value for q: " << q << ". It must be a >= 0 number." << endl;
                     printUsageAndExit( argv[0] );
                 }
             }
             else
             {
-                cerr << "Missing value for q." << endl;
-                printUsageAndExit( argv[0] );
+                cerr << "Using default value q = 0." << endl;
             }
         }
         // else if( arg == "--outfile" || arg == "-of" )
@@ -342,8 +330,6 @@ int main( int argc, char* argv[] )
         cout << "Loaded " << fac_cnt << " facilities and " << usr_cnt << " users." << endl;
         infile.close();
 
-        double start_time, end_time;
-
         // Create spatial database
         NaiveSpatialDB fac_db;
         for (uint32_t i = 0; i < fac_cnt; ++i) 
@@ -356,7 +342,8 @@ int main( int argc, char* argv[] )
         {
             usr_db.insert(usr[i]);
         }
-        NaiveReverseKNN rknn(&usr_db);
+
+        NaiveReverseKNN rknn(&usr_db, &fac_db);
 
         vector<Point> rslts = rknn.reverse_knn(fac[q], k);
         cout << "got " << rslts.size() << " results\n";
@@ -366,75 +353,6 @@ int main( int argc, char* argv[] )
         cerr << "Caught exception: " << e.what() << "\n";
         return 1;
     }
-    // cout << "=== Naive Reverse k-NN Implementation ===\n\n";
-    
-    // // Create spatial database
-    // NaiveSpatialDB db;
-    // NaiveReverseKNN rknn(&db);
-    
-    // // Test with small dataset first
-    // cout << "--- Small Test Dataset ---\n";
-    
-    // // Insert some test points
-    // db.insert(1.0, 1.0, 1);
-    // db.insert(2.0, 2.0, 2);
-    // db.insert(3.0, 1.0, 3);
-    // db.insert(1.0, 3.0, 4);
-    // db.insert(4.0, 4.0, 5);
-    // db.insert(5.0, 2.0, 6);
-    // db.insert(2.0, 5.0, 7);
-    // db.insert(6.0, 1.0, 8);
-    // db.insert(1.5, 4.5, 9);
-    // db.insert(3.5, 3.5, 10);
-    
-    // cout << "Database size: " << db.size() << " points\n";
-    
-    // // Test queries
-    // Point query1(2.5, 2.5, 100);  // Query point not in database
-    // Point query2(3.0, 1.0, 3);    // Query point in database
-    
-    // rknn.test_reverse_knn(query1, 2);
-    // rknn.test_reverse_knn(query1, 3);
-    // rknn.test_reverse_knn(query2, 2);
-    
-    // // Test with larger random dataset
-    // cout << "\n--- Larger Random Dataset ---\n";
-    
-    // NaiveSpatialDB large_db;
-    // NaiveReverseKNN large_rknn(&large_db);
-    
-    // // Generate random points
-    // auto random_points = generate_random_points(50, 0.0, 20.0);
-    // for (const auto& point : random_points) {
-    //     large_db.insert(point);
-    // }
-    
-    // cout << "Database size: " << large_db.size() << " points\n";
-    
-    // // Test with random query points
-    // Point large_query1(10.0, 10.0, 999);
-    // Point large_query2 = random_points[25];  // Use an existing point
-    
-    // large_rknn.test_reverse_knn(large_query1, 3);
-    // large_rknn.test_reverse_knn(large_query1, 5);
-    // large_rknn.test_reverse_knn(large_query2, 3);
-    
-    // // Demonstrate what reverse k-NN means
-    // cout << "\n--- Understanding Reverse k-NN ---\n";
-    // cout << "Query point: " << large_query1 << "\n";
-    // cout << "Finding points that have the query as one of their 3-NN:\n\n";
-    
-    // auto rknn_result = large_rknn.reverse_knn_bruteforce(large_query1, 3);
-    
-    // for (const auto& point : rknn_result) {
-    //     auto knn = large_db.knn_search(point, 3);
-    //     cout << "Point " << point << " has 3-NN: ";
-    //     for (const auto& neighbor : knn) {
-    //         cout << "ID" << neighbor.id << "(d=" << fixed << setprecision(2) 
-    //                   << point.distance_to(neighbor) << ") ";
-    //     }
-    //     cout << "\n";
-    // }
     
     return 0;
 }

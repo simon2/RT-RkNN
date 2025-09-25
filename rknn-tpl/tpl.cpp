@@ -12,7 +12,7 @@
 #include <time.h>
 #include <sys/time.h>
 
-#include "RStarTree2D.h"
+#include "tpl.h"
 
 void printUsageAndExit( const char* argv0 )
 {
@@ -37,8 +37,8 @@ int main( int argc, char* argv[] )
     string infile_path;
     string outfile;
     string algorithm_name = "all";
-    uint32_t k;
-    uint32_t q;
+    uint32_t k = 4;
+    uint32_t q = 0;
 
     for( int i = 1; i < argc; ++i )
     {
@@ -78,8 +78,7 @@ int main( int argc, char* argv[] )
             }
             else
             {
-                cerr << "Missing value for k." << endl;
-                printUsageAndExit( argv[0] );
+                cerr << "Using default value k = 4." << endl;
             }
         }
         else if ( arg == "-q" )
@@ -87,16 +86,15 @@ int main( int argc, char* argv[] )
             if (i < argc - 1 )
             {
                 q = stoi(argv[++i]);
-                if (q <= 0) 
+                if (q < 0) 
                 {
-                    cerr << "Invalid value for q: " << q << ". It must be a positive number." << endl;
+                    cerr << "Invalid value for q: " << q << ". It must be a >= 0 number." << endl;
                     printUsageAndExit( argv[0] );
                 }
             }
             else
             {
-                cerr << "Missing value for q." << endl;
-                printUsageAndExit( argv[0] );
+                cerr << "Using default value q = 0." << endl;
             }
         }
         // else if( arg == "--outfile" || arg == "-of" )
@@ -183,89 +181,96 @@ int main( int argc, char* argv[] )
                 << fac[q].x << ", " << fac[q].y << "):" << endl;
         start_time = get_wall_time();
         Point query_point(fac[q].x, fac[q].y, fac[q].id);
-        auto knn_results = usr_rtree.knn_search(query_point, k*2);
+        auto knn_results = fac_rtree.knn_search(query_point, k*2);
         end_time = get_wall_time();
         cout << "KNN search time: " << end_time - start_time << "[s]." << endl << endl;
         for (size_t i = 0; i < knn_results.size(); ++i) {
             const auto& point = knn_results[i];
-            std::cout << (i + 1) << ". Point: (" << point.x << ", " << point.y
-                    << ") ID: " << point.id
-                    << " Distance: " << query_point.distance_to(point) << std::endl;
+            cout << (i + 1) << ". Point: (" << point.x << ", " << point.y
+                 << ") ID: " << point.id
+                 << " Distance: " << query_point.distance_to(point) << std::endl;
         }
         cout << endl;
 
         // Filtering
         cout << "Filtering..." << endl;
         start_time = get_wall_time();
+        vector<Line> bisectors;
+        for (size_t i = 0; i < knn_results.size(); ++i) {
+            const auto& point = knn_results[i];
+            if (point.id == fac[q].id) continue; // skip the query point itself
+            bisectors.push_back(perpendicular_bisector(query_point, point));
+        }
+        // cout << "Constructed " << bisectors.size() << " bisectors." << endl;
 
+        // Print all bisectors
+        cout << "Bisectors:" << endl;
+        for (size_t i = 0; i < bisectors.size(); ++i) {
+            const auto& bisector = bisectors[i];
+            cout << (i + 1) << ". ";
+            if (bisector.is_vertical) {
+                cout << "Vertical line: x = " << bisector.x_val;
+            } else {
+                cout << "Line: y = " << bisector.a << "x + " << bisector.b;
+            }
+            cout << " (valid_side: " << bisector.valid_side << ")" << endl;
+        }
+        cout << endl;
+
+        vector<Point> rknn_candidates;
+        get_rknn_candidates(&usr_rtree, bisectors, rknn_candidates, k);
+        
         end_time = get_wall_time();
+        cout << "Found " << rknn_candidates.size() << " RkNN candidates." << endl;
         cout << "Filtering time: " << end_time - start_time << "[s]." << endl << endl;
+
+        // Verification
+        cout << "Verifying..." << endl;
+        start_time = get_wall_time();
+        vector<Point> final_rknn;
+        for (const auto& candidate : rknn_candidates) {
+            auto fac_knn_of_candidate = fac_rtree.knn_search(candidate, k);
+            bool found = false;
+            for (const auto& neighbor : fac_knn_of_candidate) {
+                if (query_point.id == neighbor.id) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                final_rknn.push_back(candidate);
+            }
+        }
+        end_time = get_wall_time();
+        cout << "Found " << final_rknn.size() << " RkNN results." << endl;
+        cout << "Verification time: " << end_time - start_time << "[s]." << endl << endl;
+
+        cout << "Naive RkNN search..." << endl;
+        start_time = get_wall_time();
+        vector<Point> naive_rknn;
+        for (uint32_t i = 0; i < usr_cnt; ++i) {
+            const auto& candidate = usr[i];
+            auto fac_knn_of_candidate = fac_rtree.knn_search(candidate, k);
+            bool found = false;
+            for (const auto& neighbor : fac_knn_of_candidate) {
+                if (query_point.id == neighbor.id) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                naive_rknn.push_back(candidate);
+            }
+        }
+        end_time = get_wall_time();
+        cout << "Naive Found " << naive_rknn.size() << " RkNN results." << endl;
+        cout << "Verification time: " << end_time - start_time << "[s]." << endl << endl;
     }
     catch( exception& e )
     {
         cerr << "Caught exception: " << e.what() << "\n";
         return 1;
     }
-
-
-    // // Range search
-    // std::cout << "Range search for points in rectangle (2.0, 2.0) to (5.0, 5.0):" << std::endl;
-    // auto range_results = rtree.range_search(2.0, 2.0, 5.0, 5.0);
-    // for (const auto& point : range_results) {
-    //     std::cout << "Found point: (" << point.x << ", " << point.y
-    //               << ") ID: " << point.id << std::endl;
-    // }
-    // std::cout << std::endl;
-
-    // // Radius search
-    // Point query_point(3.0, 3.0, -1);
-    // double radius = 2.0;
-    // std::cout << "Radius search around point (" << query_point.x << ", " << query_point.y
-    //           << ") with radius " << radius << ":" << std::endl;
-    // auto radius_results = rtree.radius_search(query_point, radius);
-    // for (const auto& point : radius_results) {
-    //     std::cout << "Found point: (" << point.x << ", " << point.y
-    //               << ") ID: " << point.id
-    //               << " Distance: " << query_point.distance_to(point) << std::endl;
-    // }
-    // std::cout << std::endl;
-
-    // // K-nearest neighbors search
-    // int k = 3;
-    // std::cout << "Finding " << k << " nearest neighbors to point ("
-    //           << query_point.x << ", " << query_point.y << "):" << std::endl;
-    // auto knn_results = rtree.knn_search(query_point, k);
-    // for (size_t i = 0; i < knn_results.size(); ++i) {
-    //     const auto& point = knn_results[i];
-    //     std::cout << (i + 1) << ". Point: (" << point.x << ", " << point.y
-    //               << ") ID: " << point.id
-    //               << " Distance: " << query_point.distance_to(point) << std::endl;
-    // }
-    // std::cout << std::endl;
-
-    // // Remove a point
-    // std::cout << "Removing point (2.5, 2.5) with ID 2..." << std::endl;
-    // bool removed = rtree.remove(2.5, 2.5, 2);
-    // std::cout << "Point " << (removed ? "successfully removed" : "not found") << std::endl;
-
-    // // Verify removal with another range search
-    // std::cout << "\nRange search after removal:" << std::endl;
-    // range_results = rtree.range_search(2.0, 2.0, 5.0, 5.0);
-    // for (const auto& point : range_results) {
-    //     std::cout << "Found point: (" << point.x << ", " << point.y
-    //               << ") ID: " << point.id << std::endl;
-    // }
-
-    // // Demonstrate bulk insertion
-    // std::cout << "\nInserting additional points for stress testing..." << std::endl;
-    // for (int i = 11; i <= 20; ++i) {
-    //     double x = (i % 5) * 1.5;
-    //     double y = (i / 5) * 1.5;
-    //     rtree.insert(x, y, i);
-    // }
-
-    // std::cout << "Tree after bulk insertion:" << std::endl;
-    // rtree.print_tree();
 
     return 0;
 }

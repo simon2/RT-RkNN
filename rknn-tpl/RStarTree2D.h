@@ -111,6 +111,9 @@ public:
 
     void print_tree();
 
+    // Getter for root node (for external algorithms)
+    shared_ptr<RStarNode> get_root() const { return root; }
+
 private:
     void insert_entry(RStarEntry& entry, int level);
 

@@ -596,6 +596,11 @@ void RStarTree::knn_search_recursive(shared_ptr<RStarNode> node, const Point& qu
                                     int k, priority_queue<pair<double, Point>>& pq) {
     if (node->is_leaf) {
         for (const auto& entry : node->entries) {
+            // Skip the query point itself based on ID
+            if (entry.point.id == query_point.id) {
+                continue;
+            }
+
             double distance = query_point.distance_to(entry.point);
 
             if (static_cast<int>(pq.size()) < k) {

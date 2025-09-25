@@ -540,6 +540,7 @@ endfunction()
 add_subdirectory( rknn-rt )
 add_subdirectory( rknn-tpl )
 add_subdirectory( rknn-naive )
+add_subdirectory( rknn-rtree )
 
 # Our sutil library.  The rules to build it are found in the subdirectory.
 add_subdirectory(sutil)

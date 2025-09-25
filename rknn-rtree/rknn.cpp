@@ -12,7 +12,7 @@
 #include <time.h>
 #include <sys/time.h>
 
-#include "tpl.h"
+#include "rknn.h"
 
 void printUsageAndExit( const char* argv0 )
 {
@@ -176,58 +176,12 @@ int main( int argc, char* argv[] )
 
         cout << "R*-tree is built in " << end_time - start_time << "[s]." <<  endl << endl;
 
-        // K-nearest neighbors search
-        cout << "Finding " << k*2 << " nearest neighbors to point ("
-                << fac[q].x << ", " << fac[q].y << "):" << endl;
+        cout << "Naive RkNN search with R*-tree..." << endl;
         start_time = get_wall_time();
         Point query_point(fac[q].x, fac[q].y, fac[q].id);
-        auto knn_results = fac_rtree.knn_search(query_point, k*2);
-        end_time = get_wall_time();
-        cout << "KNN search time: " << end_time - start_time << "[s]." << endl << endl;
-        // for (size_t i = 0; i < knn_results.size(); ++i) {
-        //     const auto& point = knn_results[i];
-        //     cout << (i + 1) << ". Point: (" << point.x << ", " << point.y
-        //          << ") ID: " << point.id
-        //          << " Distance: " << query_point.distance_to(point) << std::endl;
-        // }
-        // cout << endl;
-
-        // Filtering
-        cout << "Filtering..." << endl;
-        start_time = get_wall_time();
-        vector<Line> bisectors;
-        for (size_t i = 0; i < knn_results.size(); ++i) {
-            const auto& point = knn_results[i];
-            if (point.id == fac[q].id) continue; // skip the query point itself
-            bisectors.push_back(perpendicular_bisector(query_point, point));
-        }
-        // cout << "Constructed " << bisectors.size() << " bisectors." << endl;
-
-        // cout << "Bisectors:" << endl;
-        // for (size_t i = 0; i < bisectors.size(); ++i) {
-        //     const auto& bisector = bisectors[i];
-        //     cout << (i + 1) << ". ";
-        //     if (bisector.is_vertical) {
-        //         cout << "Vertical line: x = " << bisector.x_val;
-        //     } else {
-        //         cout << "Line: y = " << bisector.a << "x + " << bisector.b;
-        //     }
-        //     cout << " (valid_side: " << bisector.valid_side << ")" << endl;
-        // }
-        // cout << endl;
-
-        vector<Point> rknn_candidates;
-        get_rknn_candidates(&usr_rtree, bisectors, rknn_candidates, k);
-        
-        end_time = get_wall_time();
-        cout << "Found " << rknn_candidates.size() << " RkNN candidates." << endl;
-        cout << "Filtering time: " << end_time - start_time << "[s]." << endl << endl;
-
-        // Verification
-        cout << "Verifying..." << endl;
-        start_time = get_wall_time();
-        vector<Point> final_rknn;
-        for (const auto& candidate : rknn_candidates) {
+        vector<Point> naive_rknn;
+        for (uint32_t i = 0; i < usr_cnt; ++i) {
+            const auto& candidate = usr[i];
             auto fac_knn_of_candidate = fac_rtree.knn_search(candidate, k);
             bool found = false;
             for (const auto& neighbor : fac_knn_of_candidate) {
@@ -237,33 +191,12 @@ int main( int argc, char* argv[] )
                 }
             }
             if (found) {
-                final_rknn.push_back(candidate);
+                naive_rknn.push_back(candidate);
             }
         }
         end_time = get_wall_time();
-        cout << "Found " << final_rknn.size() << " RkNN results." << endl;
+        cout << "Found " << naive_rknn.size() << " RkNN results." << endl;
         cout << "Verification time: " << end_time - start_time << "[s]." << endl << endl;
-
-        // cout << "Naive RkNN search..." << endl;
-        // start_time = get_wall_time();
-        // vector<Point> naive_rknn;
-        // for (uint32_t i = 0; i < usr_cnt; ++i) {
-        //     const auto& candidate = usr[i];
-        //     auto fac_knn_of_candidate = fac_rtree.knn_search(candidate, k);
-        //     bool found = false;
-        //     for (const auto& neighbor : fac_knn_of_candidate) {
-        //         if (query_point.id == neighbor.id) {
-        //             found = true;
-        //             break;
-        //         }
-        //     }
-        //     if (found) {
-        //         naive_rknn.push_back(candidate);
-        //     }
-        // }
-        // end_time = get_wall_time();
-        // cout << "Naive Found " << naive_rknn.size() << " RkNN results." << endl;
-        // cout << "Verification time: " << end_time - start_time << "[s]." << endl << endl;
     }
     catch( exception& e )
     {

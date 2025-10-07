@@ -186,9 +186,7 @@ int main( int argc, char* argv[] )
 
         // for (size_t i = 0; i < knn_results.size(); ++i) {
         //     const auto& point = knn_results[i];
-        //     cout << (i + 1) << ". Point: (" << point.x << ", " << point.y
-        //          << ") ID: " << point.id
-        //          << " Distance: " << query_point.distance_to(point) << std::endl;
+        //     cout << point.id << endl;
         // }
         // cout << endl;
 
@@ -243,6 +241,7 @@ int main( int argc, char* argv[] )
         end_time = get_wall_time();
         cout << "Found " << final_rknn.size() << " RkNN results." << endl;
         // cout << "Verification time: " << end_time - start_time << "[s]." << endl << endl;
+
         cout << "Total time: " << end_time - start_time << "[s]." << endl << endl;
     }
     catch( exception& e )

@@ -348,8 +348,8 @@ int main( int argc, char* argv[] )
         double start_time = get_wall_time();
         vector<Point> rslts = rknn.reverse_knn(fac[q], k);
         double end_time = get_wall_time();
-        cout << "Reverse k-NN search completed in " << fixed << setprecision(6) << (end_time - start_time) << "[s].\n";
-        cout << "got " << rslts.size() << " results\n";
+        cout << "RkNN search completed in " << fixed << setprecision(6) << (end_time - start_time) << "[s].\n";
+        cout << "Found " << rslts.size() << " RkNN results\n";
     }
     catch( exception& e )
     {

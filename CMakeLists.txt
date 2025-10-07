@@ -537,7 +537,10 @@ endfunction()
 # Just make sure you rename all the occurances of the sample's name in the C code as well
 # and the CMakeLists.txt file.
 
+add_subdirectory( test )
 add_subdirectory( rknn-rt )
+add_subdirectory( rknn-rt-in )
+add_subdirectory( rknn-rt-tpl )
 add_subdirectory( rknn-tpl )
 add_subdirectory( rknn-naive )
 add_subdirectory( rknn-rtree )

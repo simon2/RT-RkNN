@@ -175,30 +175,85 @@ int main( int argc, char* argv[] )
         end_time = get_wall_time();
         cout << "R*-tree is built in " << end_time - start_time << "[s]." <<  endl << endl;
 
-        // K-nearest neighbors search
-        // cout << "Finding " << k*2 << " nearest neighbors to point ("
-        //         << fac[q].x << ", " << fac[q].y << "):" << endl;
-        start_time = get_wall_time();
-        Point query_point(fac[q].x, fac[q].y, fac[q].id);
-        auto knn_results = fac_rtree.knn_search(query_point, k*2);
-        // end_time = get_wall_time();
-        // cout << "KNN search time: " << end_time - start_time << "[s]." << endl << endl;
-
-        // for (size_t i = 0; i < knn_results.size(); ++i) {
-        //     const auto& point = knn_results[i];
-        //     cout << point.id << endl;
-        // }
-        // cout << endl;
 
         // Filtering
         // cout << "Filtering..." << endl;
-        // start_time = get_wall_time();
+        start_time = get_wall_time();
+        Point query_point(fac[q].x, fac[q].y, fac[q].id);
         vector<Line> bisectors;
-        for (size_t i = 0; i < knn_results.size(); ++i) {
-            const auto& point = knn_results[i];
-            if (point.id == fac[q].id) continue; // skip the query point itself
-            bisectors.push_back(perpendicular_bisector(query_point, point));
+        // for (size_t i = 0; i < knn_results.size(); ++i) {
+        //     const auto& point = knn_results[i];
+        //     if (point.id == fac[q].id) continue; // skip the query point itself
+        //     bisectors.push_back(perpendicular_bisector(query_point, point));
+        // }
+
+        // Priority queue-based bisector creation
+        // Use min-heap priority queue (closest entries first)
+        priority_queue<PQEntry, vector<PQEntry>, greater<PQEntry>> pq;
+
+        // Initialize with root node
+        auto root = fac_rtree.get_root();
+        if (root) {
+            PQEntry root_entry;
+            root_entry.node = root;
+            root_entry.distance = min_distance_to_rect(query_point, root->get_mbr());
+            root_entry.is_point = false;
+            pq.push(root_entry);
         }
+
+        // Process entries from priority queue
+        while (!pq.empty()) {
+            PQEntry current = pq.top();
+            pq.pop();
+
+            if (current.is_point) {
+                // This is a point - create a bisector if it's not the query point itself
+                if (current.point.id != query_point.id) {
+                    bisectors.push_back(perpendicular_bisector(query_point, current.point));
+                }
+            } else {
+                // This is a node - check if it can be pruned by existing bisectors
+                bool can_prune = false;
+                int violation_count = 0;
+
+                for (const auto& bisector : bisectors) {
+                    if (can_prune_node_by_valid_side(current.node, bisector)) {
+                        violation_count++;
+                        if (violation_count > (int)k) {
+                            can_prune = true;
+                            break;
+                        }
+                    }
+                }
+
+                // If not pruned, add its children/points to the priority queue
+                if (!can_prune) {
+                    if (current.node->is_leaf) {
+                        // Add points from leaf node
+                        for (const auto& entry : current.node->entries) {
+                            PQEntry point_entry;
+                            point_entry.is_point = true;
+                            point_entry.point = entry.point;
+                            point_entry.distance = query_point.distance_to(entry.point);
+                            point_entry.node = nullptr;
+                            pq.push(point_entry);
+                        }
+                    } else {
+                        // Add child nodes from internal node
+                        for (const auto& entry : current.node->entries) {
+                            if (entry.child) {
+                                PQEntry child_entry;
+                                child_entry.node = entry.child;
+                                child_entry.distance = min_distance_to_rect(query_point, entry.child->get_mbr());
+                                child_entry.is_point = false;
+                                pq.push(child_entry);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // cout << "Constructed " << bisectors.size() << " bisectors." << endl;
 
         // cout << "Bisectors:" << endl;

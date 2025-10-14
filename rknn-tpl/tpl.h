@@ -300,3 +300,26 @@ void get_rknn_candidates(
     rknn_candidates.clear();
     dfs_rknn_traverse(rtree->get_root(), bisectors, rknn_candidates, k);
 }
+
+// Priority Queue Entry for R*-tree traversal with bisector creation
+struct PQEntry {
+    shared_ptr<RStarNode> node;
+    double distance;  // Distance from query point to node's MBR or point
+    bool is_point;
+    Point point;  // Used when is_point is true
+
+    // Priority queue uses max-heap by default, so we invert comparison for min-heap
+    bool operator>(const PQEntry& other) const {
+        return distance > other.distance;
+    }
+};
+
+// Helper function to calculate minimum distance from point to rectangle
+inline double min_distance_to_rect(const Point& p, const Rectangle& rect) {
+    double dx = 0, dy = 0;
+    if (p.x < rect.min_x) dx = rect.min_x - p.x;
+    else if (p.x > rect.max_x) dx = p.x - rect.max_x;
+    if (p.y < rect.min_y) dy = rect.min_y - p.y;
+    else if (p.y > rect.max_y) dy = p.y - rect.max_y;
+    return sqrt(dx * dx + dy * dy);
+}

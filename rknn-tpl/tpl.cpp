@@ -175,17 +175,13 @@ int main( int argc, char* argv[] )
         end_time = get_wall_time();
         cout << "R*-tree is built in " << end_time - start_time << "[s]." <<  endl << endl;
 
-
+        //
         // Filtering
+        //
         // cout << "Filtering..." << endl;
         start_time = get_wall_time();
         Point query_point(fac[q].x, fac[q].y, fac[q].id);
         vector<Line> bisectors;
-        // for (size_t i = 0; i < knn_results.size(); ++i) {
-        //     const auto& point = knn_results[i];
-        //     if (point.id == fac[q].id) continue; // skip the query point itself
-        //     bisectors.push_back(perpendicular_bisector(query_point, point));
-        // }
 
         // Priority queue-based bisector creation
         // Use min-heap priority queue (closest entries first)
@@ -253,30 +249,16 @@ int main( int argc, char* argv[] )
                 }
             }
         }
-
-        // cout << "Constructed " << bisectors.size() << " bisectors." << endl;
-
-        // cout << "Bisectors:" << endl;
-        // for (size_t i = 0; i < bisectors.size(); ++i) {
-        //     const auto& bisector = bisectors[i];
-        //     cout << (i + 1) << ". ";
-        //     if (bisector.is_vertical) {
-        //         cout << "Vertical line: x = " << bisector.x_val;
-        //     } else {
-        //         cout << "Line: y = " << bisector.a << "x + " << bisector.b;
-        //     }
-        //     cout << " (valid_side: " << bisector.valid_side << ")" << endl;
-        // }
-        // cout << endl;
-
         vector<Point> rknn_candidates;
         get_rknn_candidates(&usr_rtree, bisectors, rknn_candidates, k);
-        
+
         // end_time = get_wall_time();
         // cout << "Found " << rknn_candidates.size() << " RkNN candidates." << endl;
         // cout << "Filtering time: " << end_time - start_time << "[s]." << endl << endl;
 
+        //
         // Verification
+        //
         // cout << "Verifying..." << endl;
         // start_time = get_wall_time();
         vector<Point> final_rknn;

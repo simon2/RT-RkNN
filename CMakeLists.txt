@@ -542,6 +542,7 @@ add_subdirectory( rknn-rt )
 add_subdirectory( rknn-rt-in )
 add_subdirectory( rknn-rt-tpl )
 add_subdirectory( rknn-tpl )
+add_subdirectory( rknn-inf )
 add_subdirectory( rknn-naive )
 add_subdirectory( rknn-rtree )
 

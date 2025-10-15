@@ -28,6 +28,7 @@
 
 
 OPTIX_add_sample_executable( rknn-tpl target_name
+  tpl.h
   tpl.cpp
   RStarTree2D.h
   RStarTree2D.cpp

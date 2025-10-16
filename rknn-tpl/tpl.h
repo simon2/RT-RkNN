@@ -1,6 +1,5 @@
 #include "RStarTree2D.h"
 #include <cmath>
-#include <functional>
 
 // 2D Line class
 class Line {

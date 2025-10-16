@@ -1,14 +1,9 @@
-#include <iomanip>
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <array>
 #include <queue>
 #include <stack>
 #include <vector>
-#include <limits>
-#include <random>
-
 #include <time.h>
 #include <sys/time.h>
 
@@ -175,6 +170,8 @@ int main( int argc, char* argv[] )
         end_time = get_wall_time();
         cout << "R*-tree is built in " << end_time - start_time << "[s]." <<  endl << endl;
 
+        double filtering_time, verification_time;
+
         //
         // Filtering
         //
@@ -253,7 +250,7 @@ int main( int argc, char* argv[] )
         get_rknn_candidates(&usr_rtree, bisectors, rknn_candidates, k);
 
         end_time = get_wall_time();
-        double filtering_time = end_time - start_time;
+        filtering_time = end_time - start_time;
         cout << "Found " << rknn_candidates.size() << " RkNN candidates." << endl;
         cout << "Filtering time: " << filtering_time << "[s]." << endl << endl;
 
@@ -277,7 +274,7 @@ int main( int argc, char* argv[] )
             }
         }
         end_time = get_wall_time();
-        double verification_time = end_time - start_time;
+        verification_time = end_time - start_time;
         cout << "Verification time: " << verification_time << "[s]." << endl << endl;
         cout << "Found " << final_rknn.size() << " RkNN results." << endl;
         

@@ -94,15 +94,11 @@ extern "C" __global__ void __closesthit__ch()
 
 extern "C" __global__ void __anyhit__ah()
 {
-    // get obj data from sbt
-    HitGroupData* hit_data  = reinterpret_cast<HitGroupData*>( optixGetSbtDataPointer() );
 
     // setting cost
     uint32_t cnt = optixGetPayload_1();
+    cnt++;
 
-    if ( params.q == hit_data->far_id ) {
-        cnt++;
-    }
     if (cnt >= params.k) {
         optixSetPayload_0( 0 );
         optixTerminateRay();

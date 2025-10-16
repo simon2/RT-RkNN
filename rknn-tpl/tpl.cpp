@@ -178,7 +178,7 @@ int main( int argc, char* argv[] )
         //
         // Filtering
         //
-        // cout << "Filtering..." << endl;
+        cout << "Filtering..." << endl;
         start_time = get_wall_time();
         Point query_point(fac[q].x, fac[q].y, fac[q].id);
         vector<Line> bisectors;
@@ -252,15 +252,16 @@ int main( int argc, char* argv[] )
         vector<Point> rknn_candidates;
         get_rknn_candidates(&usr_rtree, bisectors, rknn_candidates, k);
 
-        // end_time = get_wall_time();
-        // cout << "Found " << rknn_candidates.size() << " RkNN candidates." << endl;
-        // cout << "Filtering time: " << end_time - start_time << "[s]." << endl << endl;
+        end_time = get_wall_time();
+        double filtering_time = end_time - start_time;
+        cout << "Found " << rknn_candidates.size() << " RkNN candidates." << endl;
+        cout << "Filtering time: " << filtering_time << "[s]." << endl << endl;
 
         //
         // Verification
         //
-        // cout << "Verifying..." << endl;
-        // start_time = get_wall_time();
+        cout << "Verifying..." << endl;
+        start_time = get_wall_time();
         vector<Point> final_rknn;
         for (const auto& candidate : rknn_candidates) {
             auto fac_knn_of_candidate = fac_rtree.knn_search(candidate, k);
@@ -276,10 +277,11 @@ int main( int argc, char* argv[] )
             }
         }
         end_time = get_wall_time();
+        double verification_time = end_time - start_time;
+        cout << "Verification time: " << verification_time << "[s]." << endl << endl;
         cout << "Found " << final_rknn.size() << " RkNN results." << endl;
-        // cout << "Verification time: " << end_time - start_time << "[s]." << endl << endl;
-
-        cout << "Total time: " << end_time - start_time << "[s]." << endl << endl;
+        
+        cout << "Total time: " << filtering_time + verification_time << "[s]." << endl << endl;
     }
     catch( exception& e )
     {

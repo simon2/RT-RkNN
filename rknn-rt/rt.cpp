@@ -49,6 +49,7 @@
 #include <vector>
 #include <limits>
 #include <random>
+#include <utility>
 
 #include <time.h>
 #include <sys/time.h>
@@ -95,14 +96,13 @@ void print_reslt(uint32_t* rslt, Point* usr_list, uint32_t width, uint32_t heigh
         {
             if (rslt[i * width + j] == 1)
             {
-                // printf("%d ", usr_list[ i * width + j ]);
+                // printf("%d ", usr_list[ i * width + j ].id);
                 candidate_cnt++;
             }
         }
-        printf("\n");
+        // printf("\n");
     }
-    printf("Total users: %d\n", candidate_cnt);
-    printf("\n\n");
+    cout << "Found " << candidate_cnt << " RkNN results." << endl;
 }
 
 double get_wall_time()
@@ -122,8 +122,8 @@ int main( int argc, char* argv[] )
     string infile_path;
     string outfile;
     string algorithm_name = "all";
-    uint32_t k;
-    uint32_t q;
+    uint32_t k = 4;
+    uint32_t q = 0;
 
     for( int i = 1; i < argc; ++i )
     {
@@ -245,8 +245,8 @@ int main( int argc, char* argv[] )
         infile.close();
 
         // Get max x and y
-        uint32_t length = fac[0].x;
-        uint32_t height = fac[0].y;
+        int length = fac[0].x;
+        int height = fac[0].y;
         for (uint32_t i = 1; i < fac_cnt; ++i) 
         {
             if (fac[i].x > length) length = fac[i].x;
@@ -257,6 +257,8 @@ int main( int argc, char* argv[] )
             if (usr[i].x > length) length = usr[i].x;
             if (usr[i].y > height) height = usr[i].y;
         }
+        length += 1;
+        height += 1;
         cout << "Scene length: " << length << ", Scene height: " << height << endl << endl;
 
         // print facilities and users
@@ -278,7 +280,7 @@ int main( int argc, char* argv[] )
         // scene construction
         //
         cout << "Constructing scene..." << endl;
-        uint32_t n_meshes = fac_cnt * (fac_cnt - 1);
+        uint32_t n_meshes = fac_cnt - 1;
         vector<TriangleMesh> meshes(n_meshes);
         uint32_t count_meshes = 0;
         uint32_t z = 1;
@@ -286,136 +288,106 @@ int main( int argc, char* argv[] )
         start_time = get_wall_time();
         for (uint32_t i = 0; i < fac_cnt; ++i) 
         {
-            for (uint32_t j = i + 1; j < fac_cnt; ++j) 
+            if (fac[i].x == fac[q].x && fac[i].y == fac[q].y) 
             {
-                if (fac[i].x == fac[j].x && fac[i].y == fac[j].y) 
-                {
-                    // skip if the same facility
-                    cout << "facility " << fac[i].id << " and " << fac[j].id << " are the same." << endl;
-                    continue;
-                }
-                else if (fac[i].x == fac[j].x) 
-                {
-                    // cout << "facility " << fac[i].id << " and " << fac[j].id << " are in same column." << endl;
-                    float split_y = (fac[i].y + fac[j].y) / 2.0f;
+                // skip if the same facility
+                continue;
+            }
+            else if (fac[i].x == fac[q].x) 
+            {
+                float split_y = (fac[i].y + fac[q].y) / 2.0f;
 
+                // set near and far points
+                if (fac[i].y > fac[q].y)
+                {
                     // create upper mesh (rectangle)
                     float2 upper_lt = {0, (float)height};
                     float2 upper_rb = {(float)length, split_y};
                     meshes[count_meshes++].addRectangle(upper_lt, upper_rb, z);
-
+                }
+                else 
+                {
                     // create lower mesh (rectangle)
                     float2 lower_lt = {0, split_y};
                     float2 lower_rb = {(float)length, 0};
                     meshes[count_meshes++].addRectangle(lower_lt, lower_rb, z);
-
-                    // set near and far points
-                    if (fac[i].y > fac[j].y) 
-                    {
-                        meshes[count_meshes - 2].point_near = fac[i].id;
-                        meshes[count_meshes - 2].point_far = fac[j].id;
-                        meshes[count_meshes - 1].point_far = fac[i].id;
-                        meshes[count_meshes - 1].point_near = fac[j].id;
-                    }
-                    else 
-                    {
-                        meshes[count_meshes - 2].point_near = fac[j].id;
-                        meshes[count_meshes - 2].point_far = fac[i].id;
-                        meshes[count_meshes - 1].point_far = fac[j].id;
-                        meshes[count_meshes - 1].point_near = fac[i].id;
-                    }
                 }
-                else if (fac[i].y == fac[j].y) 
+            }
+            else if (fac[i].y == fac[q].y) 
+            {
+                float split_x = (fac[i].x + fac[q].x) / 2.0f;
+
+                // set near and far points
+                if (fac[i].x > fac[q].x) 
                 {
-                    // cout << "facility " << fac[i].id << " and " << fac[j].id << " are in same raw." << endl;
-                    float split_x = (fac[i].x + fac[j].x) / 2.0f;
-
-                    // create upper mesh (rectangle)
-                    float2 left_lt = {0, (float)height};
-                    float2 left_rb = {split_x, 0};
-                    meshes[count_meshes++].addRectangle(left_lt, left_rb, z);
-
-                    // create lower mesh (rectangle)
+                    // create right mesh (rectangle)
                     float2 right_lt = {split_x, (float)height};
                     float2 right_rb = {(float)length, 0};
                     meshes[count_meshes++].addRectangle(right_lt, right_rb, z);
-
-                    // set near and far points
-                    if (fac[i].x < fac[j].x) 
-                    {
-                        meshes[count_meshes - 2].point_near = fac[i].id;
-                        meshes[count_meshes - 2].point_far = fac[j].id;
-                        meshes[count_meshes - 1].point_far = fac[i].id;
-                        meshes[count_meshes - 1].point_near = fac[j].id;
-                    }
-                    else 
-                    {
-                        meshes[count_meshes - 2].point_near = fac[j].id;
-                        meshes[count_meshes - 2].point_far = fac[i].id;
-                        meshes[count_meshes - 1].point_far = fac[j].id;
-                        meshes[count_meshes - 1].point_near = fac[i].id;
-                    }
                 }
-                else
+                else 
                 {
-                    // cout << "facility " << fac[i].id << " and " << fac[j].id << " are normal case." << endl;
-                    float mid_x = (fac[i].x + fac[j].x) / 2.0f;
-                    float mid_y = (fac[i].y + fac[j].y) / 2.0f;
-                    float a = (float)(fac[j].y - fac[i].y) / (float)(fac[j].x - fac[i].x);
-                    float ap = -1.0 / a;
-                    float bp = mid_y - ap * mid_x;
+                    // create left mesh (rectangle)
+                    float2 left_lt = {0, (float)height};
+                    float2 left_rb = {split_x, 0};
+                    meshes[count_meshes++].addRectangle(left_lt, left_rb, z);
+                }
+            }
+            else
+            {
+                // cout << "facility " << fac[i].id << " and " << fac[j].id << " are normal case." << endl;
+                float mid_x = (fac[i].x + fac[q].x) / 2.0f;
+                float mid_y = (fac[i].y + fac[q].y) / 2.0f;
+                float a = (float)(fac[q].y - fac[i].y) / (float)(fac[q].x - fac[i].x);
+                float ap = -1.0 / a;
+                float bp = mid_y - ap * mid_x;
 
-                    if ( ap > 0 )
+                if ( ap > 0 )
+                {
+                    if (fac[i].y > fac[q].y)
                     {
                         // create upper mesh (triangle)
                         float2 upper_m = {0, (float)height};
                         float2 upper_h = {((float)height - bp) / ap, (float)height};
                         float2 upper_l = {0, bp};
                         meshes[count_meshes++].addTriangle(upper_m, upper_h, upper_l, z);
-
+                    }
+                    else
+                    {
                         // create lower mesh (triangle)
                         float2 lower_m = {(float)length, 0};
                         float2 lower_h = {(float)length, (float)length * ap + bp};
                         float2 lower_l = {(0 - bp) / ap, 0};
                         meshes[count_meshes++].addTriangle(lower_m, lower_h, lower_l, z);
                     }
-                    else
+                }
+                else
+                {
+                    if (fac[i].y > fac[q].y)
                     {
                         // create upper mesh (triangle)
                         float2 upper_m = {(float)length, (float)height};
                         float2 upper_h = {((float)height - bp) / ap, (float)height};
                         float2 upper_l = {(float)length, ap * (float)length + bp};
                         meshes[count_meshes++].addTriangle(upper_m, upper_h, upper_l, z);
-
+                    }
+                    else
+                    {
                         // create lower mesh (triangle)
                         float2 lower_m = {0, 0};
                         float2 lower_h = {0, bp};
                         float2 lower_l = {(0 - bp) / ap, 0};
                         meshes[count_meshes++].addTriangle(lower_m, lower_h, lower_l, z);
                     }
-
-                    // set near and far points
-                    if (fac[i].y > fac[j].y) 
-                    {
-                        meshes[count_meshes - 2].point_near = fac[i].id;
-                        meshes[count_meshes - 2].point_far = fac[j].id;
-                        meshes[count_meshes - 1].point_far = fac[i].id;
-                        meshes[count_meshes - 1].point_near = fac[j].id;
-                    }
-                    else 
-                    {
-                        meshes[count_meshes - 2].point_near = fac[j].id;
-                        meshes[count_meshes - 2].point_far = fac[i].id;
-                        meshes[count_meshes - 1].point_far = fac[j].id;
-                        meshes[count_meshes - 1].point_near = fac[i].id;
-                    }
                 }
-                z++;
             }
+            z++;
         }
         end_time = get_wall_time();
+        double scene_time = end_time - start_time;
         cout << "Depth of the scene: " << z << endl;
-        cout << "Scene constructed in " << end_time - start_time << "[s]." << endl << endl;
+        cout << "Scene constructed in " << scene_time << "[s]." << endl << endl;
+
 
         //
         // Set up ray origin array
@@ -430,7 +402,8 @@ int main( int argc, char* argv[] )
             ray_coords[i].y = usr[i].y;
         }
         end_time = get_wall_time();
-        cout << "Ray origin array set up in " << end_time - start_time << "[s]." << endl << endl;
+        double ray_array_time = end_time - start_time;
+        cout << "Ray origin array set up in " << ray_array_time << "[s]." << endl << endl;
 
         //
         // Initialize CUDA and create OptiX context
@@ -470,6 +443,8 @@ int main( int argc, char* argv[] )
         OptixTraversableHandle gas_handle;
         CUdeviceptr            d_gas_output_buffer;
         {
+            cout << "Building OptiX acceleration structure..." << endl;
+            start_time = get_wall_time();
             // Use default options for simplicity.  In a real use case we would want to
             // enable compaction, etc
             OptixAccelBuildOptions accel_options = {};
@@ -533,8 +508,6 @@ int main( int argc, char* argv[] )
                 triangle_inputs[meshID].triangleArray.sbtIndexOffsetStrideInBytes = 0; 
             }
             
-            cout << "Building OptiX acceleration structure..." << endl;
-            start_time = get_wall_time();
             OptixAccelBufferSizes gas_buffer_sizes;
             OPTIX_CHECK( optixAccelComputeMemoryUsage(
                         context,
@@ -567,7 +540,7 @@ int main( int argc, char* argv[] )
                         0                   // num emitted properties
                         ) );
             end_time = get_wall_time();
-            cout << "OptiX acceleration structure built in " << end_time - start_time << "[s]." << endl;
+            
             // We can now free the scratch space buffer used during build and the vertex
             // inputs, since they are not needed by our trivial shading method
             CUDA_CHECK( cudaFree( reinterpret_cast<void*>( d_temp_buffer_gas ) ) );
@@ -575,6 +548,8 @@ int main( int argc, char* argv[] )
                 CUDA_CHECK( cudaFree( reinterpret_cast<void*>( md_vertices[meshID] ) ) );
             }
         }
+        double bvh_time = end_time - start_time;
+        cout << "OptiX acceleration structure built in " << bvh_time << "[s]." << endl;
 
         //
         // Create module
@@ -737,8 +712,8 @@ int main( int argc, char* argv[] )
             vector<HitGroupSbtRecord> hitgroup_records;
             for (uint32_t meshID = 0; meshID < meshes.size(); meshID++) {
                 HitGroupSbtRecord hg_sbt;
-                hg_sbt.data.far_id = meshes[meshID].point_far;
-                hg_sbt.data.near_id = meshes[meshID].point_near;
+                // hg_sbt.data.far_id = meshes[meshID].point_far;
+                // hg_sbt.data.near_id = meshes[meshID].point_near;
                 OPTIX_CHECK( optixSbtRecordPackHeader( hitgroup_prog_group, &hg_sbt ) );
                 hitgroup_records.push_back(hg_sbt);
             }
@@ -781,7 +756,6 @@ int main( int argc, char* argv[] )
             params.rslt         = result_buffer.map();
             params.ray_coords   = d_ray_coords;
             params.k            = k;
-            params.q            = fac[q].id;
             params.width        = usr_cnt;
             params.height       = 1;
             params.depth        = (float)z + 1.0f;
@@ -804,7 +778,8 @@ int main( int argc, char* argv[] )
             CUDA_CHECK( cudaFree( reinterpret_cast<void*>( d_param ) ) );
         }
         end_time = get_wall_time();
-        cout << "OptiX launch time: " << end_time - start_time << "[s]." << endl << endl;
+        double ray_trace_time = end_time - start_time;
+        cout << "OptiX launch time: " << ray_trace_time << "[s]." << endl << endl;
 
         //
         // Send results back to host
@@ -827,12 +802,14 @@ int main( int argc, char* argv[] )
             rslt = result_buffer.getHostPointer();
         }
         end_time = get_wall_time();
-        cout << "Send back to host time: " << end_time - start_time << "[s]." << endl << endl;
+        double copy_out_time = end_time - start_time;
+        cout << "Send back to host time: " << ray_trace_time << "[s]." << endl << endl;
 
         //
         // Print results
         //
         print_reslt(rslt, usr, usr_cnt, 1);
+        cout << "Total time: " << scene_time + ray_array_time + bvh_time + ray_trace_time + copy_out_time << "[s]." << endl << endl;
 
         //
         // Cleanup

@@ -43,7 +43,6 @@ struct Params
     uint32_t*       rslt;
     int2*           ray_coords;
     uint32_t        k;
-    uint32_t        q;    
     uint32_t        width;
     uint32_t        height;
     float           depth;
@@ -60,10 +59,7 @@ struct MissData
 
 
 struct HitGroupData
-{
-    uint32_t    far_id;
-    uint32_t    near_id;
-};
+{ /* No data needed */ };
 
 //
 // structs and functions for generating meshes
@@ -77,13 +73,14 @@ struct TriangleMesh
     std::vector<float3> vertices;
     std::vector<int3>   indices;
     // float3              color;
-    uint32_t            point_near;
-    uint32_t            point_far;
 };
 
 void TriangleMesh::addTriangle(float2 m, float2 h, float2 l, uint32_t z)
 {
-    // set vertices
+    // Get the current vertex count BEFORE adding new vertices
+    int base_idx = vertices.size();
+    
+    // Set vertices
     float3 a, b, c;
     a.x = m.x;     a.y = m.y;     a.z = z;
     b.x = h.x;     b.y = h.y;     b.z = z;
@@ -93,13 +90,16 @@ void TriangleMesh::addTriangle(float2 m, float2 h, float2 l, uint32_t z)
     vertices.push_back( b );
     vertices.push_back( c );
     
-    // set indices 
-    indices.push_back({ 0, 1, 2 });
+    // Set indices - use the actual positions of the vertices we just added
+    indices.push_back({ base_idx, base_idx + 1, base_idx + 2 });
 }
 
 void TriangleMesh::addRectangle(float2 lt, float2 rb, uint32_t z)
 {
-    // set vertices
+    // Get the current vertex count BEFORE adding new vertices
+    int base_idx = vertices.size();
+    
+    // Set vertices
     float3 a, b, c, d;
     a.x = lt.x;     a.y = lt.y;     a.z = z;
     b.x = lt.x;     b.y = rb.y;     b.z = z;
@@ -111,10 +111,9 @@ void TriangleMesh::addRectangle(float2 lt, float2 rb, uint32_t z)
     vertices.push_back( c );
     vertices.push_back( d );
     
-    // set indices 
-    indices.push_back({ 0, 1, 2 });
-    indices.push_back({ 0, 2, 3 });
-
+    // Set indices - use the actual positions of the vertices we just added
+    indices.push_back({ base_idx, base_idx + 1, base_idx + 2 });
+    indices.push_back({ base_idx, base_idx + 2, base_idx + 3 });
 }
 
 //

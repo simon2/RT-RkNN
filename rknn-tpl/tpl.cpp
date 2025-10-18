@@ -212,7 +212,7 @@ int main( int argc, char* argv[] )
                 for (const auto& bisector : bisectors) {
                     if (can_prune_node_by_valid_side(current.node, bisector)) {
                         violation_count++;
-                        if (violation_count > (int)k) {
+                        if (violation_count >= (int)k) {
                             can_prune = true;
                             break;
                         }

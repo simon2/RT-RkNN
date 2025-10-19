@@ -246,6 +246,7 @@ int main( int argc, char* argv[] )
                 }
             }
         }
+        // cout << "Created " << bisectors.size() << " bisectors." << endl;
         vector<Point> rknn_candidates;
         get_rknn_candidates(&usr_rtree, bisectors, rknn_candidates, k);
 

@@ -198,10 +198,11 @@ int main( int argc, char* argv[] )
         }
         Rectangle space_boundaries(min_x, min_y, max_x, max_y);
 
+        double filtering_time, verification_time;
         //
         // Filtering
         //
-        // cout << "Filtering..." << endl;
+        cout << "Filtering..." << endl;
         start_time = get_wall_time();
         Point query_point(fac[q].x, fac[q].y, fac[q].id);
         vector<Line> bisectors;
@@ -440,19 +441,26 @@ int main( int argc, char* argv[] )
         }
 
         // // Final vertex statistics
-        // cout << "\nFinal vertex statistics:" << endl;
-        cout << "Total bisectors created: " << bisectors.size() << endl;
-        // cout << "Total vertices tracked: " << vertices.size() << endl;
+        end_time = get_wall_time();
+        filtering_time = end_time - start_time;
+        cout << "Filtering time: " << filtering_time << "[s]." << endl;
+        cout << "Total bisectors created: " << bisectors.size() << endl << endl;
 
+        //
+        // Verification
+        //
+        cout << "Verifying..." << endl;
+        start_time = get_wall_time();
 
-        vector<Point> rknn_candidates;
-        get_rknn_candidates(&usr_rtree, bisectors, rknn_candidates, k);
+        vector<Point> rknn_results;
+        get_rknn_candidates(&usr_rtree, bisectors, rknn_results, k);
 
         end_time = get_wall_time();
-        cout << "Found " << rknn_candidates.size() << " RkNN candidates." << endl;
-        cout << "Filtering time: " << end_time - start_time << "[s]." << endl << endl;
+        verification_time = end_time - start_time;
+        cout << "Found " << rknn_results.size() << " RkNN results." << endl;
+        cout << "Verification time: " << verification_time << "[s]." << endl << endl;
 
-        cout << "Total time: " << end_time - start_time << "[s]." << endl << endl;
+        cout << "Total time: " << filtering_time + verification_time << "[s]." << endl << endl;
     }
     catch( exception& e )
     {

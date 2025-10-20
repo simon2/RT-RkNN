@@ -121,13 +121,10 @@ Run the main RT-based implementation:
 
 ```bash
 # Example usage with custom parameters
-./build/rknn-rt --data dataset.txt --k 5 --query query.txt
+./build/rknn-rt -if dataset.txt -k 5 -q 10
 
 # Run TPL algorithm
-./build/rknn-tpl --data dataset.txt --k 10
-
-# Run with visualization
-./build/rknn-rt --visualize --data dataset.txt
+./build/rknn-tpl -if dataset.txt -k 5 -q 10
 ```
 
 ### Input Data Format

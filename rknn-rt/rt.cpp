@@ -260,19 +260,6 @@ int main( int argc, char* argv[] )
         length += 1;
         height += 1;
         cout << "Scene length: " << length << ", Scene height: " << height << endl << endl;
-
-        // print facilities and users
-        // cout << "Facilities array: ";
-        // for (int i = 0; i < fac_cnt; ++i)
-        // {
-        //     cout << "ID: " << fac[i].id << ", X: " << fac[i].x << ", Y: " << fac[i].y << endl;
-        // }
-
-        // cout << "Users array: ";
-        // for (int i = 0; i < usr_cnt; ++i)
-        // {
-        //     cout << "ID: " << usr[i].id << ", X: " << usr[i].x << ", Y: " << usr[i].y << endl;
-        // }
         
         double start_time, end_time;
 
@@ -403,7 +390,7 @@ int main( int argc, char* argv[] )
         }
         end_time = get_wall_time();
         double ray_array_time = end_time - start_time;
-        cout << "Ray origin array set up in " << ray_array_time << "[s]." << endl << endl;
+        // cout << "Ray origin array set up in " << ray_array_time << "[s]." << endl << endl;
 
         //
         // Initialize CUDA and create OptiX context
@@ -683,6 +670,7 @@ int main( int argc, char* argv[] )
         //
         // Set up shader binding table
         //
+        start_time = get_wall_time();
         OptixShaderBindingTable sbt = {};
         {
             CUdeviceptr  raygen_record;
@@ -735,7 +723,11 @@ int main( int argc, char* argv[] )
             sbt.hitgroupRecordStrideInBytes = sizeof( HitGroupSbtRecord );
             sbt.hitgroupRecordCount         = (int)hitgroup_records.size();
         }
+        end_time = get_wall_time();
+        double stb_time = end_time - start_time;
+        cout << "STB time: " << stb_time << "[s]." << endl << endl;
 
+        start_time = get_wall_time();
         // Set result matrix
         sutil::CUDAOutputBuffer<uint32_t> result_buffer( sutil::CUDAOutputBufferType::CUDA_DEVICE, usr_cnt, 1 );
         
@@ -743,6 +735,9 @@ int main( int argc, char* argv[] )
         int2* d_ray_coords = nullptr;
         CUDA_CHECK(cudaMalloc(reinterpret_cast<int2**>(&d_ray_coords), usr_cnt * sizeof(int2)));
         CUDA_CHECK(cudaMemcpy(d_ray_coords, ray_coords.data(), usr_cnt * sizeof(int2), cudaMemcpyHostToDevice));
+        end_time = get_wall_time();
+        double ray_setup_time = end_time - start_time;
+        cout << "setup ray to device time: " << ray_setup_time << "[s]." << endl << endl;
 
         //
         // launch
@@ -803,13 +798,13 @@ int main( int argc, char* argv[] )
         }
         end_time = get_wall_time();
         double copy_out_time = end_time - start_time;
-        cout << "Send back to host time: " << ray_trace_time << "[s]." << endl << endl;
+        cout << "Send back to host time: " << copy_out_time << "[s]." << endl << endl;
 
         //
         // Print results
         //
         print_reslt(rslt, usr, usr_cnt, 1);
-        cout << "Total time: " << scene_time + ray_array_time + bvh_time + ray_trace_time + copy_out_time << "[s]." << endl << endl;
+        cout << "Total time: " << scene_time + bvh_time + stb_time + ray_setup_time + ray_trace_time + copy_out_time << "[s]." << endl << endl;
 
         //
         // Cleanup

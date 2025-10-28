@@ -568,13 +568,6 @@ int main( int argc, char* argv[] )
             }
             else
             {
-                // cout << "facility " << fac[i].id << " and " << fac[j].id << " are normal case." << endl;
-                // float mid_x = (fac[i].x + fac[q].x) / 2.0f;
-                // float mid_y = (fac[i].y + fac[q].y) / 2.0f;
-                // float a = (float)(fac[q].y - fac[i].y) / (float)(fac[q].x - fac[i].x);
-                // float ap = -1.0 / a;
-                // float bp = mid_y - ap * mid_x;
-
                 if ( bisector.a > 0 )
                 {
                     if (bisector.valid_side == 0)

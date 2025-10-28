@@ -139,14 +139,6 @@ id2 x2 y2
 Query files follow the same format for query points.
 
 
-## Benchmarking
-
-Run the evaluation script to compare different implementations:
-```bash
-cd build
-./eva.sh
-```
-
 Results will be saved in the `build/log/` directory.
 
 ## Troubleshooting

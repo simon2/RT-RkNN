@@ -262,15 +262,9 @@ int main( int argc, char* argv[] )
         start_time = get_wall_time();
         vector<Point> final_rknn;
         for (const auto& candidate : rknn_candidates) {
-            auto fac_knn_of_candidate = fac_rtree.knn_search(candidate, k);
-            bool found = false;
-            for (const auto& neighbor : fac_knn_of_candidate) {
-                if (query_point.id == neighbor.id) {
-                    found = true;
-                    break;
-                }
-            }
-            if (found) {
+            double radius = query_point.distance_to(candidate);
+            auto neighbors_of_candidate = fac_rtree.radius_search(candidate, radius);
+            if (neighbors_of_candidate.size() <= k){
                 final_rknn.push_back(candidate);
             }
         }

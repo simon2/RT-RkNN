@@ -386,7 +386,7 @@ int main( int argc, char* argv[] )
                     bool should_consider = false;
 
                     // Condition 1: vertex with pruning_count == k-1
-                    if (vertex.pruning_count == k - 1) {
+                    if (vertex.pruning_count == (int)k - 1) {
                         should_consider = true;
                     }
                     // Condition 2: extreme boundary points with pruning_count < k

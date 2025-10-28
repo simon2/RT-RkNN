@@ -55,6 +55,7 @@
 #include <sys/time.h>
 
 #include "rt.h"
+#include "inf.h"
 
 using namespace std;
 
@@ -244,71 +245,299 @@ int main( int argc, char* argv[] )
         cout << "Loaded " << fac_cnt << " facilities and " << usr_cnt << " users." << endl;
         infile.close();
 
-        // Get max x and y
-        int length = fac[0].x;
-        int height = fac[0].y;
-        for (uint32_t i = 1; i < fac_cnt; ++i) 
-        {
-            if (fac[i].x > length) length = fac[i].x;
-            if (fac[i].y > height) height = fac[i].y;
+        // Determine space boundaries (bounding box of all facilities and users)
+        double min_x = numeric_limits<double>::max();
+        double max_x = numeric_limits<double>::lowest();
+        double min_y = numeric_limits<double>::max();
+        double max_y = numeric_limits<double>::lowest();
+
+        for (uint32_t i = 0; i < fac_cnt; ++i) {
+            min_x = min(min_x, fac[i].x);
+            max_x = max(max_x, fac[i].x);
+            min_y = min(min_y, fac[i].y);
+            max_y = max(max_y, fac[i].y);
         }
-        for (uint32_t i = 0; i < usr_cnt; ++i) 
-        {
-            if (usr[i].x > length) length = usr[i].x;
-            if (usr[i].y > height) height = usr[i].y;
+        for (uint32_t i = 0; i < usr_cnt; ++i) {
+            min_x = min(min_x, usr[i].x);
+            max_x = max(max_x, usr[i].x);
+            min_y = min(min_y, usr[i].y);
+            max_y = max(max_y, usr[i].y);
         }
-        length += 1;
-        height += 1;
+        Rectangle space_boundaries(min_x, min_y, max_x, max_y);
+
+        int length = max_x - min_x + 2;
+        int height = max_y - min_y + 2;
         cout << "Scene length: " << length << ", Scene height: " << height << endl << endl;
-        
+
         double start_time, end_time;
+
+        // Build R*-Tree
+        cout << "building R*-trees..." << endl;
+        start_time = get_wall_time();
+        RStarTree fac_rtree;
+        RStarTree usr_rtree;
+        for (uint32_t i = 0; i < fac_cnt; ++i) 
+        {
+            fac_rtree.insert(fac[i]);
+        }
+        end_time = get_wall_time();
+        cout << "R*-tree is built in " << end_time - start_time << "[s]." <<  endl << endl;
 
         //
         // scene construction
         //
         cout << "Constructing scene..." << endl;
-        uint32_t n_meshes = fac_cnt - 1;
+        start_time = get_wall_time();
+        Point query_point(fac[q].x, fac[q].y, fac[q].id);
+        vector<Line> bisectors;
+
+        // Initialize vertex list with the four corners of space boundaries
+        vector<Vertex> vertices;
+        vertices.push_back(Vertex(Point(min_x, min_y), true));  // bottom-left
+        vertices.push_back(Vertex(Point(max_x, min_y), true));  // bottom-right
+        vertices.push_back(Vertex(Point(min_x, max_y), true));  // top-left
+        vertices.push_back(Vertex(Point(max_x, max_y), true));  // top-right
+
+        // Priority queue-based bisector creation
+        // Use min-heap priority queue (closest entries first)
+        priority_queue<PQEntry, vector<PQEntry>, greater<PQEntry>> pq;
+
+        // Initialize with root node
+        auto root = fac_rtree.get_root();
+        if (root) {
+            PQEntry root_entry;
+            root_entry.node = root;
+            root_entry.distance = min_distance_to_rect(query_point, root->get_mbr());
+            root_entry.is_point = false;
+            pq.push(root_entry);
+        }
+
+        // Process entries from priority queue
+        while (!pq.empty()) {
+            PQEntry current = pq.top();
+            pq.pop();
+
+            if (current.is_point) {
+                // This is a point - create a bisector if it's not the query point itself
+                if (current.point.id != query_point.id) {
+                    Line new_bisector = perpendicular_bisector(query_point, current.point);
+
+                    // Update vertex pruning counts for existing vertices
+                    for (auto& vertex : vertices) {
+                        if (!new_bisector.is_on_valid_side(vertex.point)) {
+                            vertex.pruning_count++;
+                        }
+                    }
+
+                    // Find intersections with space boundaries
+                    vector<Point> boundary_intersections = find_line_rectangle_intersections(
+                        new_bisector, space_boundaries);
+
+                    // Add new intersection vertices
+                    for (const auto& intersection : boundary_intersections) {
+                        // Check if this intersection point already exists (within tolerance)
+                        bool exists = false;
+                        for (const auto& vertex : vertices) {
+                            if (abs(vertex.point.x - intersection.x) < 1e-9 &&
+                                abs(vertex.point.y - intersection.y) < 1e-9) {
+                                exists = true;
+                                break;
+                            }
+                        }
+
+                        if (!exists) {
+                            Vertex new_vertex(intersection, true);
+                            // Count how many existing bisectors can prune this new vertex
+                            for (const auto& bisector : bisectors) {
+                                if (!bisector.is_on_valid_side(intersection)) {
+                                    new_vertex.pruning_count++;
+                                }
+                            }
+                            vertices.push_back(new_vertex);
+                        }
+                    }
+
+                    // Find intersections with existing bisectors
+                    for (const auto& existing_bisector : bisectors) {
+                        Point intersection;
+                        if (find_line_intersection(new_bisector, existing_bisector, intersection)) {
+                            // Check if intersection is within space boundaries
+                            if (intersection.x >= space_boundaries.min_x &&
+                                intersection.x <= space_boundaries.max_x &&
+                                intersection.y >= space_boundaries.min_y &&
+                                intersection.y <= space_boundaries.max_y) {
+
+                                // Check if this intersection point already exists
+                                bool exists = false;
+                                for (const auto& vertex : vertices) {
+                                    if (abs(vertex.point.x - intersection.x) < 1e-9 &&
+                                        abs(vertex.point.y - intersection.y) < 1e-9) {
+                                        exists = true;
+                                        break;
+                                    }
+                                }
+
+                                if (!exists) {
+                                    Vertex new_vertex(intersection, false);
+                                    // Count how many bisectors can prune this new vertex
+                                    for (const auto& bisector : bisectors) {
+                                        if (!bisector.is_on_valid_side(intersection)) {
+                                            new_vertex.pruning_count++;
+                                        }
+                                    }
+                                    vertices.push_back(new_vertex);
+                                }
+                            }
+                        }
+                    }
+
+                    bisectors.push_back(new_bisector);
+
+                    // Remove vertices with pruning_count >= k (they cannot be part of the RkNN region)
+                    vertices.erase(
+                        remove_if(vertices.begin(), vertices.end(),
+                            [k](const Vertex& v) {
+                                return v.pruning_count >= (int)k;
+                            }),
+                        vertices.end()
+                    );
+                }
+            } else {
+                // This is a node - check if it can be pruned by existing bisectors
+                bool can_prune = true;
+
+                // Calculate minimum distance from current node to vertices with pruning_count = k-1
+                // or extreme boundary points with pruning_count < k
+                Rectangle node_mbr = current.node->get_mbr();
+
+                // First, identify extreme points on each boundary edge
+                // For each boundary edge, we need the two points with minimum and maximum coordinate along that edge
+                Point* left_min = nullptr;   // Leftmost point with min y on left boundary
+                Point* left_max = nullptr;   // Leftmost point with max y on left boundary
+                Point* right_min = nullptr;  // Rightmost point with min y on right boundary
+                Point* right_max = nullptr;  // Rightmost point with max y on right boundary
+                Point* bottom_min = nullptr; // Bottom point with min x on bottom boundary
+                Point* bottom_max = nullptr; // Bottom point with max x on bottom boundary
+                Point* top_min = nullptr;    // Top point with min x on top boundary
+                Point* top_max = nullptr;    // Top point with max x on top boundary
+
+                const double eps = 1e-9;  // Tolerance for boundary checking
+
+                // Find extreme points among boundary vertices with pruning_count < k
+                for (auto& vertex : vertices) {
+                    if (vertex.is_boundary && vertex.pruning_count < (int)k) {
+                        // Check which boundary this vertex is on
+                        if (abs(vertex.point.x - space_boundaries.min_x) < eps) {
+                            // Left boundary
+                            if (!left_min || vertex.point.y < left_min->y) {
+                                left_min = &vertex.point;
+                            }
+                            if (!left_max || vertex.point.y > left_max->y) {
+                                left_max = &vertex.point;
+                            }
+                        }
+                        if (abs(vertex.point.x - space_boundaries.max_x) < eps) {
+                            // Right boundary
+                            if (!right_min || vertex.point.y < right_min->y) {
+                                right_min = &vertex.point;
+                            }
+                            if (!right_max || vertex.point.y > right_max->y) {
+                                right_max = &vertex.point;
+                            }
+                        }
+                        if (abs(vertex.point.y - space_boundaries.min_y) < eps) {
+                            // Bottom boundary
+                            if (!bottom_min || vertex.point.x < bottom_min->x) {
+                                bottom_min = &vertex.point;
+                            }
+                            if (!bottom_max || vertex.point.x > bottom_max->x) {
+                                bottom_max = &vertex.point;
+                            }
+                        }
+                        if (abs(vertex.point.y - space_boundaries.max_y) < eps) {
+                            // Top boundary
+                            if (!top_min || vertex.point.x < top_min->x) {
+                                top_min = &vertex.point;
+                            }
+                            if (!top_max || vertex.point.x > top_max->x) {
+                                top_max = &vertex.point;
+                            }
+                        }
+                    }
+                }
+
+                for (const auto& vertex : vertices) {
+                    bool should_consider = false;
+
+                    // Condition 1: vertex with pruning_count == k-1
+                    if (vertex.pruning_count == (int)k - 1) {
+                        should_consider = true;
+                    }
+                    // Condition 2: extreme boundary points with pruning_count < k
+                    else if (vertex.is_boundary && vertex.pruning_count < (int)k) {
+                        // Check if this vertex is one of the extreme points
+                        if ((left_min && abs(vertex.point.x - left_min->x) < eps && abs(vertex.point.y - left_min->y) < eps) ||
+                            (left_max && abs(vertex.point.x - left_max->x) < eps && abs(vertex.point.y - left_max->y) < eps) ||
+                            (right_min && abs(vertex.point.x - right_min->x) < eps && abs(vertex.point.y - right_min->y) < eps) ||
+                            (right_max && abs(vertex.point.x - right_max->x) < eps && abs(vertex.point.y - right_max->y) < eps) ||
+                            (bottom_min && abs(vertex.point.x - bottom_min->x) < eps && abs(vertex.point.y - bottom_min->y) < eps) ||
+                            (bottom_max && abs(vertex.point.x - bottom_max->x) < eps && abs(vertex.point.y - bottom_max->y) < eps) ||
+                            (top_min && abs(vertex.point.x - top_min->x) < eps && abs(vertex.point.y - top_min->y) < eps) ||
+                            (top_max && abs(vertex.point.x - top_max->x) < eps && abs(vertex.point.y - top_max->y) < eps)) {
+                            should_consider = true;
+                        }
+                    }
+
+                    if (should_consider &&
+                        min_distance_to_rect(query_point, node_mbr) < query_point.distance_to(vertex.point)
+                       ) {
+                        can_prune = false;
+                        break;
+                    }
+                }
+
+                // If not pruned, add its children/points to the priority queue
+                if (!can_prune) {
+                    if (current.node->is_leaf) {
+                        // Add points from leaf node
+                        for (const auto& entry : current.node->entries) {
+                            PQEntry point_entry;
+                            point_entry.is_point = true;
+                            point_entry.point = entry.point;
+                            point_entry.distance = query_point.distance_to(entry.point);
+                            point_entry.node = nullptr;
+                            pq.push(point_entry);
+                        }
+                    } else {
+                        // Add child nodes from internal node
+                        for (const auto& entry : current.node->entries) {
+                            if (entry.child) {
+                                PQEntry child_entry;
+                                child_entry.node = entry.child;
+                                child_entry.distance = min_distance_to_rect(query_point, entry.child->get_mbr());
+                                child_entry.is_point = false;
+                                pq.push(child_entry);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // cout << "Total bisectors created: " << bisectors.size() << endl << endl;
+
+        uint32_t n_meshes = bisectors.size();
         vector<TriangleMesh> meshes(n_meshes);
         uint32_t count_meshes = 0;
         uint32_t z = 1;
 
-        start_time = get_wall_time();
-        for (uint32_t i = 0; i < fac_cnt; ++i) 
+        for (const auto& bisector : bisectors) 
         {
-            if (fac[i].x == fac[q].x && fac[i].y == fac[q].y) 
+            if (bisector.is_vertical) 
             {
-                // skip if the same facility
-                continue;
-            }
-            else if (fac[i].x == fac[q].x) 
-            {
-                float split_y = (fac[i].y + fac[q].y) / 2.0f;
-
-                // set near and far points
-                if (fac[i].y > fac[q].y)
-                {
-                    // create upper mesh (rectangle)
-                    float2 upper_lt = {0, (float)height};
-                    float2 upper_rb = {(float)length, split_y};
-                    meshes[count_meshes++].addRectangle(upper_lt, upper_rb, z);
-                }
-                else 
-                {
-                    // create lower mesh (rectangle)
-                    float2 lower_lt = {0, split_y};
-                    float2 lower_rb = {(float)length, 0};
-                    meshes[count_meshes++].addRectangle(lower_lt, lower_rb, z);
-                }
-            }
-            else if (fac[i].y == fac[q].y) 
-            {
-                float split_x = (fac[i].x + fac[q].x) / 2.0f;
-
-                // set near and far points
-                if (fac[i].x > fac[q].x) 
+                if (bisector.valid_side == 0) 
                 {
                     // create right mesh (rectangle)
-                    float2 right_lt = {split_x, (float)height};
+                    float2 right_lt = {(float)bisector.x_val, (float)height};
                     float2 right_rb = {(float)length, 0};
                     meshes[count_meshes++].addRectangle(right_lt, right_rb, z);
                 }
@@ -316,81 +545,90 @@ int main( int argc, char* argv[] )
                 {
                     // create left mesh (rectangle)
                     float2 left_lt = {0, (float)height};
-                    float2 left_rb = {split_x, 0};
+                    float2 left_rb = {(float)bisector.x_val, 0};
                     meshes[count_meshes++].addRectangle(left_lt, left_rb, z);
+                }
+            }
+            else if (bisector.a == 0) 
+            {
+                if (bisector.valid_side == 0)
+                {
+                    // create upper mesh (rectangle)
+                    float2 upper_lt = {0, (float)height};
+                    float2 upper_rb = {(float)length, (float)bisector.b};
+                    meshes[count_meshes++].addRectangle(upper_lt, upper_rb, z);
+                }
+                else 
+                {
+                    // create lower mesh (rectangle)
+                    float2 lower_lt = {0, (float)bisector.b};
+                    float2 lower_rb = {(float)length, 0};
+                    meshes[count_meshes++].addRectangle(lower_lt, lower_rb, z);
                 }
             }
             else
             {
                 // cout << "facility " << fac[i].id << " and " << fac[j].id << " are normal case." << endl;
-                float mid_x = (fac[i].x + fac[q].x) / 2.0f;
-                float mid_y = (fac[i].y + fac[q].y) / 2.0f;
-                float a = (float)(fac[q].y - fac[i].y) / (float)(fac[q].x - fac[i].x);
-                float ap = -1.0 / a;
-                float bp = mid_y - ap * mid_x;
+                // float mid_x = (fac[i].x + fac[q].x) / 2.0f;
+                // float mid_y = (fac[i].y + fac[q].y) / 2.0f;
+                // float a = (float)(fac[q].y - fac[i].y) / (float)(fac[q].x - fac[i].x);
+                // float ap = -1.0 / a;
+                // float bp = mid_y - ap * mid_x;
 
-                if ( ap > 0 )
+                if ( bisector.a > 0 )
                 {
-                    if (fac[i].y > fac[q].y)
+                    if (bisector.valid_side == 0)
                     {
                         // create upper mesh (triangle)
                         float2 upper_m = {0, (float)height};
-                        float2 upper_h = {((float)height - bp) / ap, (float)height};
-                        float2 upper_l = {0, bp};
+                        float2 upper_h = {((float)height - (float)bisector.b) / (float)bisector.a, (float)height};
+                        float2 upper_l = {0, (float)bisector.b};
                         meshes[count_meshes++].addTriangle(upper_m, upper_h, upper_l, z);
                     }
                     else
                     {
                         // create lower mesh (triangle)
                         float2 lower_m = {(float)length, 0};
-                        float2 lower_h = {(float)length, (float)length * ap + bp};
-                        float2 lower_l = {(0 - bp) / ap, 0};
+                        float2 lower_h = {(float)length, (float)length * (float)bisector.a + (float)bisector.b};
+                        float2 lower_l = {(0 - (float)bisector.b) / (float)bisector.a, 0};
                         meshes[count_meshes++].addTriangle(lower_m, lower_h, lower_l, z);
                     }
                 }
                 else
                 {
-                    if (fac[i].y > fac[q].y)
+                    if (bisector.valid_side == 0)
                     {
                         // create upper mesh (triangle)
                         float2 upper_m = {(float)length, (float)height};
-                        float2 upper_h = {((float)height - bp) / ap, (float)height};
-                        float2 upper_l = {(float)length, ap * (float)length + bp};
+                        float2 upper_h = {((float)height - (float)bisector.b) / (float)bisector.a, (float)height};
+                        float2 upper_l = {(float)length, (float)bisector.a * (float)length + (float)bisector.b};
                         meshes[count_meshes++].addTriangle(upper_m, upper_h, upper_l, z);
                     }
                     else
                     {
                         // create lower mesh (triangle)
                         float2 lower_m = {0, 0};
-                        float2 lower_h = {0, bp};
-                        float2 lower_l = {(0 - bp) / ap, 0};
+                        float2 lower_h = {0, (float)bisector.b};
+                        float2 lower_l = {(0 - (float)bisector.b) / (float)bisector.a, 0};
                         meshes[count_meshes++].addTriangle(lower_m, lower_h, lower_l, z);
                     }
                 }
             }
             z++;
         }
+        
         end_time = get_wall_time();
         double scene_time = end_time - start_time;
         cout << "Depth of the scene: " << z << endl;
         cout << "Scene constructed in " << scene_time << "[s]." << endl << endl;
 
-
-        //
-        // Set up ray origin array
-        //
-        cout << "Setting up ray origin array..." << endl;
         vector<int2> ray_coords(usr_cnt);
 
-        start_time = get_wall_time();
         for (uint32_t i = 0; i < usr_cnt; ++i) 
         {
             ray_coords[i].x = usr[i].x;
             ray_coords[i].y = usr[i].y;
         }
-        end_time = get_wall_time();
-        double ray_array_time = end_time - start_time;
-        // cout << "Ray origin array set up in " << ray_array_time << "[s]." << endl << endl;
 
         //
         // Initialize CUDA and create OptiX context

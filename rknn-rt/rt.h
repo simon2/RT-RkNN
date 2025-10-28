@@ -32,8 +32,8 @@
 #include <string>
 #include <vector>
 
-// #include "customParam.h"
-#include "point.h"
+// #include "point.h"
+#include "RStarTree2D.h"
 
 //
 // structs and functions for OptiX

@@ -405,7 +405,7 @@ int main( int argc, char* argv[] )
                     }
 
                     if (should_consider &&
-                        min_distance_to_rect(query_point, node_mbr) < query_point.distance_to(vertex.point)
+                        min_distance_to_rect(vertex.point, node_mbr) < query_point.distance_to(vertex.point)
                        ) {
                         can_prune = false;
                         break;

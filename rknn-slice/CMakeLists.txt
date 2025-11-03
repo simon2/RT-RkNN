@@ -30,7 +30,6 @@
 OPTIX_add_sample_executable( rknn-slice target_name
   slice.h
   slice.cpp
-  # slice_eva.cpp
   RStarTree2D.h
   RStarTree2D.cpp
   )

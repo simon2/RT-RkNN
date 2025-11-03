@@ -4,6 +4,8 @@
 #include <queue>
 #include <stack>
 #include <vector>
+#include <algorithm>
+#include <cmath>
 #include <time.h>
 #include <sys/time.h>
 
@@ -178,13 +180,19 @@ int main( int argc, char* argv[] )
         cout << "Filtering..." << endl;
         start_time = get_wall_time();
         Point query_point(fac[q].x, fac[q].y, fac[q].id);
-        vector<Line> bisectors;
 
-        // Priority queue-based bisector creation
-        // Use min-heap priority queue (closest entries first)
+        // Step 1: Create 12 angular partitions around the query point
+        // cout << "Creating 12 angular partitions around query point ("
+        //      << query_point.x << ", " << query_point.y << ")" << endl;
+        vector<AngularPartition> partitions = create_angular_partitions(query_point, 12);
+
+        // Step 2: SLICE Pruning Phase
+        // cout << "SLICE Pruning Phase..." << endl;
+
+        // Priority queue for facility R*-tree traversal (min-heap based on distance to q)
         priority_queue<PQEntry, vector<PQEntry>, greater<PQEntry>> pq;
 
-        // Initialize with root node
+        // Initialize with root node of facility R*-tree
         auto root = fac_rtree.get_root();
         if (root) {
             PQEntry root_entry;
@@ -194,35 +202,25 @@ int main( int argc, char* argv[] )
             pq.push(root_entry);
         }
 
-        // Process entries from priority queue
+        // SLICE pruning: Process entries from priority queue
+        int facilities_processed = 0;
         while (!pq.empty()) {
             PQEntry current = pq.top();
             pq.pop();
 
             if (current.is_point) {
-                // This is a point - create a bisector if it's not the query point itself
-                if (current.point.id != query_point.id) {
-                    bisectors.push_back(perpendicular_bisector(query_point, current.point));
-                }
+                // This is a facility point - call pruneSpace
+                pruneSpace(partitions, current.point, query_point, k);
+                facilities_processed++;
             } else {
-                // This is a node - check if it can be pruned by existing bisectors
-                bool can_prune = false;
-                int violation_count = 0;
+                // This is a node - check if it may contain significant facility
+                Rectangle mbr = current.node->get_mbr();
 
-                for (const auto& bisector : bisectors) {
-                    if (can_prune_node_by_valid_side(current.node, bisector)) {
-                        violation_count++;
-                        if (violation_count >= (int)k) {
-                            can_prune = true;
-                            break;
-                        }
-                    }
-                }
-
-                // If not pruned, add its children/points to the priority queue
-                if (!can_prune) {
+                // Check if this node may contain a significant facility for at least one partition
+                if (mayContainSignificantFacility(mbr, partitions, query_point)) {
+                    // Node may contain significant facilities, expand it
                     if (current.node->is_leaf) {
-                        // Add points from leaf node
+                        // Leaf node: insert each facility point into pq
                         for (const auto& entry : current.node->entries) {
                             PQEntry point_entry;
                             point_entry.is_point = true;
@@ -232,7 +230,7 @@ int main( int argc, char* argv[] )
                             pq.push(point_entry);
                         }
                     } else {
-                        // Add child nodes from internal node
+                        // Internal node: insert each child into pq
                         for (const auto& entry : current.node->entries) {
                             if (entry.child) {
                                 PQEntry child_entry;
@@ -244,30 +242,39 @@ int main( int argc, char* argv[] )
                         }
                     }
                 }
+                // If node cannot contain significant facility, it's pruned (do nothing)
             }
         }
-        // cout << "Created " << bisectors.size() << " bisectors." << endl;
-        vector<Point> rknn_candidates;
-        get_rknn_candidates(&usr_rtree, bisectors, rknn_candidates, k);
+
+        // cout << "Processed " << facilities_processed << " facilities" << endl;
+
+        // // Print partition statistics
+        // cout << "\nPartition Statistics:" << endl;
+        // for (const auto& partition : partitions) {
+        //     cout << "  Partition " << partition.partition_id << ": ";
+        //     cout << "boundary_arc = " << partition.boundary_arc << ", ";
+        //     cout << "sigList size = " << partition.sigList.size() << endl;
+        // }
+        // cout << endl;
 
         end_time = get_wall_time();
         filtering_time = end_time - start_time;
-        cout << "Found " << rknn_candidates.size() << " RkNN candidates." << endl;
         cout << "Filtering time: " << filtering_time << "[s]." << endl << endl;
 
         //
-        // Verification
+        // Verification - Traverse user R*-tree to find RkNN
         //
-        cout << "Verifying..." << endl;
+        cout << "Verifying users..." << endl;
         start_time = get_wall_time();
+
         vector<Point> final_rknn;
-        for (const auto& candidate : rknn_candidates) {
-            double radius = query_point.distance_to(candidate);
-            auto neighbors_of_candidate = fac_rtree.radius_search(candidate, radius);
-            if (neighbors_of_candidate.size() <= k){
-                final_rknn.push_back(candidate);
-            }
+
+        // Traverse the user R*-tree and verify each user
+        auto usr_root = usr_rtree.get_root();
+        if (usr_root) {
+            traverseUserTree(usr_root, partitions, query_point, final_rknn, k);
         }
+
         end_time = get_wall_time();
         verification_time = end_time - start_time;
         cout << "Verification time: " << verification_time << "[s]." << endl << endl;

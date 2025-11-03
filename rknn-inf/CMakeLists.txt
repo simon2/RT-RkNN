@@ -30,6 +30,7 @@
 OPTIX_add_sample_executable( rknn-inf target_name
   inf.h
   inf.cpp
+  # inf_eva.cpp
   RStarTree2D.h
   RStarTree2D.cpp
   )

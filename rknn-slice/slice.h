@@ -1,5 +1,10 @@
 #include "RStarTree2D.h"
 #include <cmath>
+#include <queue>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 // 2D Line class
 class Line {
@@ -243,6 +248,592 @@ Line perpendicular_bisector(const Point& p1, const Point& p2) { // p1 should be 
     return bisector;
 }
 
+// Helper function to normalize angle to [0, 2π)
+inline double normalize_angle(double angle) {
+    while (angle < 0) angle += 2 * M_PI;
+    while (angle >= 2 * M_PI) angle -= 2 * M_PI;
+    return angle;
+}
+
+// Helper function to calculate angular distance (shortest angular distance)
+inline double angular_distance(double angle1, double angle2) {
+    double diff = fabs(angle1 - angle2);
+    if (diff > M_PI) {
+        diff = 2 * M_PI - diff;
+    }
+    return diff;
+}
+
+// Structure to hold facility info with its bounds for sorting
+struct FacilityBound {
+    Point facility;
+    double lower_bound;  // dist(f,q)/(2*cos(minAngle(f,P)))
+    double upper_bound;  // dist(f,q)/(2*cos(maxAngle(f,P))) or INFINITY
+
+    FacilityBound(const Point& f, double lower, double upper)
+        : facility(f), lower_bound(lower), upper_bound(upper) {}
+
+    // Sort by lower bound
+    bool operator<(const FacilityBound& other) const {
+        return lower_bound < other.lower_bound;
+    }
+};
+
+// Angular partition for SLICE algorithm
+struct AngularPartition {
+    Point center;           // Center point (query point)
+    double angle_start;     // Starting angle in radians [0, 2π)
+    double angle_end;       // Ending angle in radians [0, 2π)
+    int partition_id;       // Partition identifier (0 to 11 for 12 partitions)
+
+    // SLICE algorithm specific
+    double boundary_arc;    // k-th smallest upper bound (radius of the arc)
+    vector<FacilityBound> sigList;  // Significant facilities sorted by lower bound
+    priority_queue<double> upper_bounds_heap;  // Max-heap to maintain k smallest upper bounds
+
+    AngularPartition(const Point& c, double start, double end, int id)
+        : center(c), angle_start(start), angle_end(end), partition_id(id), boundary_arc(INFINITY) {}
+
+    // Check if a point falls within this angular partition
+    bool contains_point(const Point& p) const {
+        double dx = p.x - center.x;
+        double dy = p.y - center.y;
+
+        // Calculate angle from center to point
+        double angle = atan2(dy, dx);
+
+        // Normalize angle to [0, 2π)
+        if (angle < 0) {
+            angle += 2 * M_PI;
+        }
+
+        // Handle normal case (no wrap-around)
+        if (angle_start <= angle_end) {
+            return angle >= angle_start && angle < angle_end;
+        }
+        // Handle wrap-around case (partition crosses 0/2π boundary)
+        else {
+            return angle >= angle_start || angle < angle_end;
+        }
+    }
+
+    // Get description of partition for debugging
+    string get_description() const {
+        double start_deg = angle_start * 180.0 / M_PI;
+        double end_deg = angle_end * 180.0 / M_PI;
+        return "Partition " + to_string(partition_id) +
+               ": [" + to_string(start_deg) + "°, " + to_string(end_deg) + "°)";
+    }
+};
+
+// Calculate the maximum subtended angle between a point x and a partition P
+// The subtended angle is measured at the query point q
+// Returns the maximum angle in radians
+double maxAngle(const Point& query_point, const Point& x, const AngularPartition& partition) {
+    // Calculate the angle from query_point to x
+    double dx = x.x - query_point.x;
+    double dy = x.y - query_point.y;
+    double angle_to_x = normalize_angle(atan2(dy, dx));
+
+    // The maximum subtended angle occurs between x and the partition boundary
+    // that is furthest from x (angularly)
+
+    // Calculate angular distances to both boundaries of the partition
+    double dist_to_start = angular_distance(angle_to_x, partition.angle_start);
+    double dist_to_end = angular_distance(angle_to_x, partition.angle_end);
+
+    // The maximum subtended angle is the larger of the two angular distances
+    double max_subtended_angle = max(dist_to_start, dist_to_end);
+
+    // Special case: if the partition wraps around (crosses 0/2π boundary)
+    if (partition.angle_start > partition.angle_end) {
+        // For wrap-around partitions, we need to consider the angular span differently
+        double partition_span = (2 * M_PI - partition.angle_start) + partition.angle_end;
+
+        // If x is inside the partition
+        if (partition.contains_point(x)) {
+            // Maximum angle is to the furthest boundary
+            max_subtended_angle = max(dist_to_start, dist_to_end);
+        } else {
+            // If x is outside, we need to find the maximum angle to any point in the partition
+            // This occurs at one of the boundaries
+            max_subtended_angle = max(dist_to_start, dist_to_end);
+        }
+    }
+
+    return max_subtended_angle;
+}
+
+// Alternative implementation that considers the entire angular span of the partition
+double maxAngleSpan(const Point& query_point, const Point& x, const AngularPartition& partition) {
+    // Calculate the angle from query_point to x
+    double dx = x.x - query_point.x;
+    double dy = x.y - query_point.y;
+    double angle_to_x = normalize_angle(atan2(dy, dx));
+
+    // Calculate the angular span of the partition
+    double partition_span;
+    if (partition.angle_end >= partition.angle_start) {
+        partition_span = partition.angle_end - partition.angle_start;
+    } else {
+        // Wrap-around case
+        partition_span = (2 * M_PI - partition.angle_start) + partition.angle_end;
+    }
+
+    // If point x is within the partition
+    if (partition.contains_point(x)) {
+        // Maximum subtended angle is from x to the furthest boundary
+        double dist_to_start = angular_distance(angle_to_x, partition.angle_start);
+        double dist_to_end = angular_distance(angle_to_x, partition.angle_end);
+        return max(dist_to_start, dist_to_end);
+    } else {
+        // If point x is outside the partition
+        // Maximum subtended angle is from x to the furthest point in the partition
+
+        // Calculate distances to both boundaries
+        double dist_to_start = angular_distance(angle_to_x, partition.angle_start);
+        double dist_to_end = angular_distance(angle_to_x, partition.angle_end);
+
+        // The maximum occurs at the boundary that is angularly furthest from x
+        return max(dist_to_start, dist_to_end);
+    }
+}
+
+// Calculate the minimum subtended angle between a point x and a partition P
+// The subtended angle is measured at the query point q
+// Returns the minimum angle in radians
+double minAngle(const Point& query_point, const Point& x, const AngularPartition& partition) {
+    // Calculate the angle from query_point to x
+    double dx = x.x - query_point.x;
+    double dy = x.y - query_point.y;
+    double angle_to_x = normalize_angle(atan2(dy, dx));
+
+    // If point x is within the partition, minimum angle is 0
+    if (partition.contains_point(x)) {
+        return 0.0;
+    }
+
+    // If x is outside the partition, the minimum subtended angle
+    // occurs between x and the closest boundary of the partition
+
+    // Calculate angular distances to both boundaries
+    double dist_to_start = angular_distance(angle_to_x, partition.angle_start);
+    double dist_to_end = angular_distance(angle_to_x, partition.angle_end);
+
+    // The minimum subtended angle is the smaller of the two angular distances
+    double min_subtended_angle = min(dist_to_start, dist_to_end);
+
+    // Special case: check if x is between the boundaries (for wrap-around partitions)
+    if (partition.angle_start > partition.angle_end) {
+        // Wrap-around partition case
+        // x is "between" boundaries if it's NOT in the partition
+        // but would be if we inverted the partition
+        bool x_in_gap = (angle_to_x > partition.angle_end && angle_to_x < partition.angle_start);
+
+        if (x_in_gap) {
+            // x is in the gap between end and start
+            // minimum distance is to the closest boundary
+            min_subtended_angle = min(dist_to_start, dist_to_end);
+        }
+    }
+
+    return min_subtended_angle;
+}
+
+// Alternative implementation with more explicit logic
+double minAngleAlt(const Point& query_point, const Point& x, const AngularPartition& partition) {
+    // If x is at the same position as query_point, angle is undefined
+    double dx = x.x - query_point.x;
+    double dy = x.y - query_point.y;
+
+    if (dx == 0 && dy == 0) {
+        return 0.0; // or could return NaN or handle specially
+    }
+
+    double angle_to_x = normalize_angle(atan2(dy, dx));
+
+    // If point x is within the partition, the minimum angle is 0
+    // because x itself is a point in the partition
+    if (partition.contains_point(x)) {
+        return 0.0;
+    }
+
+    // For x outside the partition, find minimum angular distance to partition
+    double dist_to_start = angular_distance(angle_to_x, partition.angle_start);
+    double dist_to_end = angular_distance(angle_to_x, partition.angle_end);
+
+    // The minimum angle is to the nearer boundary
+    return min(dist_to_start, dist_to_end);
+}
+
+// Helper function to check if an angle is between two angles (considering wrap-around)
+bool isAngleBetween(double angle, double start, double end) {
+    angle = normalize_angle(angle);
+    start = normalize_angle(start);
+    end = normalize_angle(end);
+
+    if (start <= end) {
+        return angle >= start && angle <= end;
+    } else {
+        // Wrap-around case
+        return angle >= start || angle <= end;
+    }
+}
+
+// Create 12 equally sized angular partitions around a query point
+vector<AngularPartition> create_angular_partitions(const Point& query_point, int num_partitions = 12) {
+    vector<AngularPartition> partitions;
+    double angle_per_partition = (2 * M_PI) / num_partitions;
+
+    for (int i = 0; i < num_partitions; i++) {
+        double start_angle = i * angle_per_partition;
+        double end_angle = ((i + 1) % num_partitions) * angle_per_partition;
+
+        // Handle the last partition that wraps around
+        if (i == num_partitions - 1) {
+            end_angle = 2 * M_PI;
+        }
+
+        partitions.push_back(AngularPartition(query_point, start_angle, end_angle, i));
+    }
+
+    return partitions;
+}
+
+// Helper function to calculate minimum distance from point to rectangle
+inline double min_distance_to_rect(const Point& p, const Rectangle& rect) {
+    double dx = 0, dy = 0;
+    if (p.x < rect.min_x) dx = rect.min_x - p.x;
+    else if (p.x > rect.max_x) dx = p.x - rect.max_x;
+    if (p.y < rect.min_y) dy = rect.min_y - p.y;
+    else if (p.y > rect.max_y) dy = p.y - rect.max_y;
+    return sqrt(dx * dx + dy * dy);
+}
+
+// Calculate the points M and N where boundary arc intersects partition boundaries
+pair<Point, Point> getBoundaryArcIntersections(const AngularPartition& partition, double arc_radius) {
+    // M is at angle_start, distance arc_radius from center
+    Point M(partition.center.x + arc_radius * cos(partition.angle_start),
+            partition.center.y + arc_radius * sin(partition.angle_start));
+
+    // N is at angle_end, distance arc_radius from center
+    Point N(partition.center.x + arc_radius * cos(partition.angle_end),
+            partition.center.y + arc_radius * sin(partition.angle_end));
+
+    return make_pair(M, N);
+}
+
+// Check if facility f is significant for partition P using Lemma 1 and Lemma 2
+bool isSignificantFacility(const Point& f, const Point& q, const AngularPartition& partition) {
+    double dist_fq = f.distance_to(q);
+
+    // If boundary arc is not set (INFINITY), we cannot prune, so keep the facility
+    if (partition.boundary_arc == INFINITY) {
+        return true;  // Keep as potentially significant when no boundary is set
+    }
+
+    // Lemma 1: if f is in P and dist(f,q) > 2 * boundary_arc, f is not significant
+    if (partition.contains_point(f)) {
+        if (dist_fq > 2.0 * partition.boundary_arc) {
+            return false;
+        }
+        return true;  // f is in P and close enough
+    }
+
+    // Lemma 2: if f is not in P, check distances to M and N
+    pair<Point, Point> arc_intersections = getBoundaryArcIntersections(partition, partition.boundary_arc);
+    Point M = arc_intersections.first;
+    Point N = arc_intersections.second;
+    double dist_Mf = M.distance_to(f);
+    double dist_Nf = N.distance_to(f);
+
+    // f is not significant if both distances are greater than boundary_arc
+    if (dist_Mf > partition.boundary_arc && dist_Nf > partition.boundary_arc) {
+        return false;
+    }
+
+    return true;  // f is significant
+}
+
+// Check if a node/MBR may contain a significant facility for at least one partition
+bool mayContainSignificantFacility(const Rectangle& mbr,
+                                   const vector<AngularPartition>& partitions,
+                                   const Point& query_point) {
+    // Check each partition
+    for (const auto& partition : partitions) {
+        // If boundary arc is not set, we can't prune
+        if (partition.boundary_arc == INFINITY) {
+            return true;
+        }
+
+        // Get the four corners of the MBR
+        Point corners[4] = {
+            Point(mbr.min_x, mbr.min_y),
+            Point(mbr.max_x, mbr.min_y),
+            Point(mbr.min_x, mbr.max_y),
+            Point(mbr.max_x, mbr.max_y)
+        };
+
+        // Check if any corner could be significant for this partition
+        for (const auto& corner : corners) {
+            double dist_to_q = corner.distance_to(query_point);
+
+            // Check Lemma 1: if corner is in partition
+            if (partition.contains_point(corner)) {
+                // Corner could be significant if dist <= 2 * boundary_arc
+                if (dist_to_q <= 2.0 * partition.boundary_arc) {
+                    return true;  // MBR may contain significant facility
+                }
+            } else {
+                // Check Lemma 2: if corner is not in partition
+                pair<Point, Point> arc_intersections = getBoundaryArcIntersections(partition, partition.boundary_arc);
+                Point M = arc_intersections.first;
+                Point N = arc_intersections.second;
+                double dist_Mc = M.distance_to(corner);
+                double dist_Nc = N.distance_to(corner);
+
+                // If either distance is <= boundary_arc, MBR might contain significant facility
+                if (dist_Mc <= partition.boundary_arc || dist_Nc <= partition.boundary_arc) {
+                    return true;
+                }
+            }
+        }
+
+        // Also check if the MBR might intersect with the partition's significant region
+        // Conservative check: if MBR is close enough to query point
+        double min_dist_mbr_to_q = min_distance_to_rect(query_point, mbr);
+        if (min_dist_mbr_to_q <= 2.0 * partition.boundary_arc) {
+            return true;
+        }
+    }
+
+    return false;  // MBR cannot contain significant facility for any partition
+}
+
+// Main pruneSpace function to process a single facility and update partitions
+void pruneSpace(vector<AngularPartition>& partitions,
+                const Point& f,  // Single facility to process
+                const Point& query_point,
+                int k) {
+
+    const double NINETY_DEGREES = M_PI / 2.0;
+
+    // Skip if facility is the query point itself
+    if (f.id == query_point.id) {
+        return;
+    }
+
+    // Process each partition for this facility
+    for (auto& partition : partitions) {
+        double min_ang = minAngle(query_point, f, partition);
+
+        // Only consider this facility if minAngle < 90 degrees
+        if (min_ang < NINETY_DEGREES) {
+            double max_ang = maxAngle(query_point, f, partition);
+            double dist_fq = f.distance_to(query_point);
+
+            // Calculate upper bound for this facility
+            double upper_bound;
+            if (max_ang >= NINETY_DEGREES) {
+                // Upper bound is infinite
+                upper_bound = INFINITY;
+            } else {
+                // Upper bound = dist(f,q) / (2*cos(maxAngle))
+                upper_bound = dist_fq / (2.0 * cos(max_ang));
+            }
+
+            // Use max-heap to maintain k smallest upper bounds
+            if (partition.upper_bounds_heap.size() < k) {
+                // If we have fewer than k elements, just add to heap
+                partition.upper_bounds_heap.push(upper_bound);
+                // Update boundary_arc to the largest in heap (k-th smallest so far)
+                partition.boundary_arc = partition.upper_bounds_heap.top();
+            } else {
+                // If we have k elements, only add if new bound is smaller than max
+                if (upper_bound < partition.upper_bounds_heap.top()) {
+                    partition.upper_bounds_heap.pop();  // Remove largest
+                    partition.upper_bounds_heap.push(upper_bound);  // Add new smaller value
+                    partition.boundary_arc = partition.upper_bounds_heap.top();  // Update to new k-th smallest
+                }
+                // If upper_bound >= top, it doesn't affect k-th smallest, so don't add it
+            }
+
+            // Check if f is significant using lemmas
+            if (isSignificantFacility(f, query_point, partition)) {
+                // Calculate lower bound
+                double lower_bound;
+                if (min_ang == 0) {
+                    // f is in the partition, lower bound is just half distance
+                    lower_bound = dist_fq / 2.0;
+                } else {
+                    lower_bound = dist_fq / (2.0 * cos(min_ang));
+                }
+
+                // Add to sigList
+                partition.sigList.push_back(FacilityBound(f, lower_bound, upper_bound));
+
+                // Keep sigList sorted by lower bound
+                sort(partition.sigList.begin(), partition.sigList.end());
+            }
+        }
+    }
+}
+
+// Check if a user u is a reverse k-nearest neighbor of query q
+bool isRkNN(const Point& u, const Point& q,
+            const vector<AngularPartition>& partitions, int k) {
+    // Find which partition u lies in
+    const AngularPartition* user_partition = nullptr;
+    for (const auto& partition : partitions) {
+        if (partition.contains_point(u)) {
+            user_partition = &partition;
+            break;
+        }
+    }
+
+    // If user is not in any partition (shouldn't happen), return false
+    if (!user_partition) {
+        return false;
+    }
+
+    double dist_uq = u.distance_to(q);
+    int count = 0;
+
+    // Check facilities in sigList in ascending order of lower bound
+    for (const auto& fb : user_partition->sigList) {
+        // If dist(u,q) <= lower bound of f to P, u is RkNN
+        if (dist_uq <= fb.lower_bound) {
+            return true;
+        }
+
+        // Check if this facility is closer to u than q is
+        double dist_uf = u.distance_to(fb.facility);
+        if (dist_uf < dist_uq) {
+            count++;
+            if (count >= k) {
+                return false;  // u has k closer facilities than q
+            }
+        }
+    }
+
+    return true;  // u is RkNN
+}
+
+// Check if a rectangle (MBR) lies completely in the pruned area
+bool isCompletelyPruned(const Rectangle& mbr,
+                       const vector<AngularPartition>& partitions,
+                       const Point& query_point) {
+    // For a rectangle to be completely pruned, we need to check if
+    // any part of it could possibly contain a non-pruned point.
+
+    // Conservative approach: check if the closest point of the MBR to q
+    // is still in the pruned area for all relevant partitions
+
+    // First, find the minimum distance from MBR to query point
+    double min_dist_to_q = min_distance_to_rect(query_point, mbr);
+
+    // Check each partition to see if the MBR could contain unpruned points
+    for (const auto& partition : partitions) {
+        // If boundary arc is not set, we can't prune
+        if (partition.boundary_arc == INFINITY) {
+            return false;
+        }
+
+        // Check if any part of the MBR could be in this partition and not pruned
+        // The MBR could potentially intersect with this partition
+
+        // Get corners to check angular range
+        Point corners[4] = {
+            Point(mbr.min_x, mbr.min_y),
+            Point(mbr.max_x, mbr.min_y),
+            Point(mbr.min_x, mbr.max_y),
+            Point(mbr.max_x, mbr.max_y)
+        };
+
+        // Check if MBR could intersect with this partition
+        bool mbr_intersects_partition = false;
+        for (const auto& corner : corners) {
+            if (partition.contains_point(corner)) {
+                mbr_intersects_partition = true;
+                break;
+            }
+        }
+
+        // Also check if the partition's angular range intersects the MBR
+        // This is a more complex check, but for now we'll be conservative
+        // and assume it might intersect if the MBR is close enough
+
+        if (mbr_intersects_partition || min_dist_to_q <= partition.boundary_arc) {
+            // If the closest point in MBR is within boundary_arc, MBR is not completely pruned
+            if (min_dist_to_q <= partition.boundary_arc) {
+                return false;
+            }
+        }
+    }
+
+    // Check if the entire MBR is beyond all boundary arcs
+    // Find the minimum boundary arc across all partitions
+    double min_boundary_arc = INFINITY;
+    for (const auto& partition : partitions) {
+        if (partition.boundary_arc < min_boundary_arc) {
+            min_boundary_arc = partition.boundary_arc;
+        }
+    }
+
+    // If the closest point of MBR is beyond the largest boundary arc, it's pruned
+    return min_dist_to_q > min_boundary_arc;
+}
+
+// Traverse user R*-tree to find RkNN candidates
+void traverseUserTree(shared_ptr<RStarNode> node,
+                     const vector<AngularPartition>& partitions,
+                     const Point& query_point,
+                     vector<Point>& rknn_results,
+                     int k) {
+    if (!node) return;
+
+    // Check if this node's MBR is completely in pruned area
+    Rectangle mbr = node->get_mbr();
+    if (isCompletelyPruned(mbr, partitions, query_point)) {
+        return;  // Skip this entire subtree
+    }
+
+    if (node->is_leaf) {
+        // Process each user point in this leaf
+        for (const auto& entry : node->entries) {
+            // Check if this user point is in pruned area
+            bool is_pruned = false;
+
+            // Find which partition this user belongs to
+            for (const auto& partition : partitions) {
+                if (partition.contains_point(entry.point)) {
+                    // Check if user is in pruned area of this partition
+                    double dist_to_q = entry.point.distance_to(query_point);
+                    if (partition.boundary_arc != INFINITY &&
+                        dist_to_q > partition.boundary_arc) {
+                        is_pruned = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!is_pruned) {
+                // Verify if this user is RkNN
+                if (isRkNN(entry.point, query_point, partitions, k)) {
+                    rknn_results.push_back(entry.point);
+                }
+            }
+        }
+    } else {
+        // Internal node: recursively traverse children
+        for (const auto& entry : node->entries) {
+            if (entry.child) {
+                traverseUserTree(entry.child, partitions, query_point, rknn_results, k);
+            }
+        }
+    }
+}
+
 void dfs_rknn_traverse(shared_ptr<RStarNode> node, const vector<Line>& bisectors,
                        vector<Point>& rknn_candidates, int k) {
     if (!node) return;
@@ -313,12 +904,12 @@ struct PQEntry {
     }
 };
 
-// Helper function to calculate minimum distance from point to rectangle
-inline double min_distance_to_rect(const Point& p, const Rectangle& rect) {
-    double dx = 0, dy = 0;
-    if (p.x < rect.min_x) dx = rect.min_x - p.x;
-    else if (p.x > rect.max_x) dx = p.x - rect.max_x;
-    if (p.y < rect.min_y) dy = rect.min_y - p.y;
-    else if (p.y > rect.max_y) dy = p.y - rect.max_y;
-    return sqrt(dx * dx + dy * dy);
-}
+// // Helper function to calculate minimum distance from point to rectangle
+// inline double min_distance_to_rect(const Point& p, const Rectangle& rect) {
+//     double dx = 0, dy = 0;
+//     if (p.x < rect.min_x) dx = rect.min_x - p.x;
+//     else if (p.x > rect.max_x) dx = p.x - rect.max_x;
+//     if (p.y < rect.min_y) dy = rect.min_y - p.y;
+//     else if (p.y > rect.max_y) dy = p.y - rect.max_y;
+//     return sqrt(dx * dx + dy * dy);
+// }

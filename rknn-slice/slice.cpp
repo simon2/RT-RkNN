@@ -181,15 +181,14 @@ int main( int argc, char* argv[] )
         start_time = get_wall_time();
         Point query_point(fac[q].x, fac[q].y, fac[q].id);
 
+        //
         // Step 1: Create 12 angular partitions around the query point
-        // cout << "Creating 12 angular partitions around query point ("
-        //      << query_point.x << ", " << query_point.y << ")" << endl;
+        //
         vector<AngularPartition> partitions = create_angular_partitions(query_point, 12);
 
-        // Step 2: SLICE Pruning Phase
-        // cout << "SLICE Pruning Phase..." << endl;
-
-        // Priority queue for facility R*-tree traversal (min-heap based on distance to q)
+        //
+        // Step 2: SLICE Pruning: Calculating bounding arc and significant facilities
+        //
         priority_queue<PQEntry, vector<PQEntry>, greater<PQEntry>> pq;
 
         // Initialize with root node of facility R*-tree
@@ -202,7 +201,6 @@ int main( int argc, char* argv[] )
             pq.push(root_entry);
         }
 
-        // SLICE pruning: Process entries from priority queue
         int facilities_processed = 0;
         while (!pq.empty()) {
             PQEntry current = pq.top();
@@ -246,8 +244,11 @@ int main( int argc, char* argv[] )
             }
         }
 
-        // cout << "Processed " << facilities_processed << " facilities" << endl;
-
+        end_time = get_wall_time();
+        filtering_time = end_time - start_time;
+        cout << "Filtering time: " << filtering_time << "[s]." << endl << endl;
+        cout << "Processed " << facilities_processed << " facilities" << endl;
+        
         // // Print partition statistics
         // cout << "\nPartition Statistics:" << endl;
         // for (const auto& partition : partitions) {
@@ -256,10 +257,6 @@ int main( int argc, char* argv[] )
         //     cout << "sigList size = " << partition.sigList.size() << endl;
         // }
         // cout << endl;
-
-        end_time = get_wall_time();
-        filtering_time = end_time - start_time;
-        cout << "Filtering time: " << filtering_time << "[s]." << endl << endl;
 
         //
         // Verification - Traverse user R*-tree to find RkNN

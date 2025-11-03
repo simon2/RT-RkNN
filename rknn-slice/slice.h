@@ -679,22 +679,86 @@ void pruneSpace(vector<AngularPartition>& partitions,
     }
 }
 
-// Check if a user u is a reverse k-nearest neighbor of query q
-bool isRkNN(const Point& u, const Point& q,
-            const vector<AngularPartition>& partitions, int k) {
-    // Find which partition u lies in
-    const AngularPartition* user_partition = nullptr;
-    for (const auto& partition : partitions) {
-        if (partition.contains_point(u)) {
-            user_partition = &partition;
-            break;
+// Helper function to get partition index using relative positions
+// Avoids expensive trigonometric calculations
+inline int getPartitionIndex(double dx, double dy, int num_partitions) {
+    // Handle special cases
+    if (dx == 0 && dy == 0) return 0;  // Point at query location
+
+    // For 12 partitions, each covers 30 degrees (π/6 radians)
+    // We can determine partition using slopes and quadrants
+
+    // Determine quadrant and calculate partition
+    // Partition 0: angle [0, π/6), Partition 1: [π/6, π/3), etc.
+
+    int partition_idx = 0;
+
+    // Use slopes to determine partition without computing actual angle
+    // tan(30°) = 1/√3 ≈ 0.577, tan(60°) = √3 ≈ 1.732
+    const double tan30 = 0.57735026919;  // tan(π/6)
+    const double tan60 = 1.73205080757;  // tan(π/3)
+
+    if (dx > 0) {  // Right half (partitions 0-2, 10-11)
+        if (dy >= 0) {  // First quadrant (partitions 0-2)
+            double slope = dy / dx;
+            if (slope < tan30) {
+                partition_idx = 0;
+            } else if (slope < tan60) {
+                partition_idx = 1;
+            } else {
+                partition_idx = 2;
+            }
+        } else {  // Fourth quadrant (partitions 10-11)
+            double slope = -dy / dx;  // Make positive for comparison
+            if (slope < tan30) {
+                partition_idx = 11;
+            } else if (slope < tan60) {
+                partition_idx = 10;
+            } else {
+                partition_idx = 9;
+            }
+        }
+    } else if (dx < 0) {  // Left half (partitions 3-8)
+        if (dy >= 0) {  // Second quadrant (partitions 3-5)
+            double slope = -dy / dx;  // Make positive for comparison
+            if (slope < tan30) {
+                partition_idx = 5;
+            } else if (slope < tan60) {
+                partition_idx = 4;
+            } else {
+                partition_idx = 3;
+            }
+        } else {  // Third quadrant (partitions 6-8)
+            double slope = dy / dx;  // Both negative, so positive
+            if (slope < tan30) {
+                partition_idx = 6;
+            } else if (slope < tan60) {
+                partition_idx = 7;
+            } else {
+                partition_idx = 8;
+            }
+        }
+    } else {  // dx == 0, point is directly above or below
+        if (dy > 0) {
+            partition_idx = 3;  // Directly above (90 degrees)
+        } else {
+            partition_idx = 9;  // Directly below (270 degrees)
         }
     }
 
-    // If user is not in any partition (shouldn't happen), return false
-    if (!user_partition) {
-        return false;
-    }
+    return partition_idx;
+}
+
+// Check if a user u is a reverse k-nearest neighbor of query q
+bool isRkNN(const Point& u, const Point& q,
+            const vector<AngularPartition>& partitions, int k) {
+    // Directly calculate which partition u lies in using relative positions
+    double dx = u.x - q.x;
+    double dy = u.y - q.y;
+
+    int partition_idx = getPartitionIndex(dx, dy, partitions.size());
+
+    const AngularPartition* user_partition = &partitions[partition_idx];
 
     double dist_uq = u.distance_to(q);
     int count = 0;
@@ -721,67 +785,36 @@ bool isRkNN(const Point& u, const Point& q,
 
 // Check if a rectangle (MBR) lies completely in the pruned area
 bool isCompletelyPruned(const Rectangle& mbr,
-                       const vector<AngularPartition>& partitions,
-                       const Point& query_point) {
-    // For a rectangle to be completely pruned, we need to check if
-    // any part of it could possibly contain a non-pruned point.
-
-    // Conservative approach: check if the closest point of the MBR to q
-    // is still in the pruned area for all relevant partitions
-
-    // First, find the minimum distance from MBR to query point
+                        const vector<AngularPartition>& partitions,
+                        const Point& query_point) {
+    // Early exit: compute minimum distance once
     double min_dist_to_q = min_distance_to_rect(query_point, mbr);
 
-    // Check each partition to see if the MBR could contain unpruned points
+    // Find the maximum boundary arc across ALL partitions
+    // An MBR is completely pruned only if it's beyond ALL boundary arcs
+    double max_boundary_arc = 0;
+    bool has_valid_partition = false;
+
     for (const auto& partition : partitions) {
-        // If boundary arc is not set, we can't prune
+        // Skip partitions with infinite boundary arc
         if (partition.boundary_arc == INFINITY) {
-            return false;
+            continue;
         }
 
-        // Check if any part of the MBR could be in this partition and not pruned
-        // The MBR could potentially intersect with this partition
-
-        // Get corners to check angular range
-        Point corners[4] = {
-            Point(mbr.min_x, mbr.min_y),
-            Point(mbr.max_x, mbr.min_y),
-            Point(mbr.min_x, mbr.max_y),
-            Point(mbr.max_x, mbr.max_y)
-        };
-
-        // Check if MBR could intersect with this partition
-        bool mbr_intersects_partition = false;
-        for (const auto& corner : corners) {
-            if (partition.contains_point(corner)) {
-                mbr_intersects_partition = true;
-                break;
-            }
-        }
-
-        // Also check if the partition's angular range intersects the MBR
-        // This is a more complex check, but for now we'll be conservative
-        // and assume it might intersect if the MBR is close enough
-
-        if (mbr_intersects_partition || min_dist_to_q <= partition.boundary_arc) {
-            // If the closest point in MBR is within boundary_arc, MBR is not completely pruned
-            if (min_dist_to_q <= partition.boundary_arc) {
-                return false;
-            }
+        has_valid_partition = true;
+        if (partition.boundary_arc > max_boundary_arc) {
+            max_boundary_arc = partition.boundary_arc;
         }
     }
 
-    // Check if the entire MBR is beyond all boundary arcs
-    // Find the minimum boundary arc across all partitions
-    double min_boundary_arc = INFINITY;
-    for (const auto& partition : partitions) {
-        if (partition.boundary_arc < min_boundary_arc) {
-            min_boundary_arc = partition.boundary_arc;
-        }
+    // If no partition has a valid boundary arc, can't prune
+    if (!has_valid_partition) {
+        return false;
     }
 
-    // If the closest point of MBR is beyond the largest boundary arc, it's pruned
-    return min_dist_to_q > min_boundary_arc;
+    // MBR is completely pruned if its closest point is beyond
+    // the maximum boundary arc (not minimum!)
+    return min_dist_to_q > max_boundary_arc;
 }
 
 // Traverse user R*-tree to find RkNN candidates
@@ -804,17 +837,19 @@ void traverseUserTree(shared_ptr<RStarNode> node,
             // Check if this user point is in pruned area
             bool is_pruned = false;
 
-            // Find which partition this user belongs to
-            for (const auto& partition : partitions) {
-                if (partition.contains_point(entry.point)) {
-                    // Check if user is in pruned area of this partition
-                    double dist_to_q = entry.point.distance_to(query_point);
-                    if (partition.boundary_arc != INFINITY &&
-                        dist_to_q > partition.boundary_arc) {
-                        is_pruned = true;
-                        break;
-                    }
-                }
+            // Directly calculate which partition this user belongs to using relative positions
+            double dx = entry.point.x - query_point.x;
+            double dy = entry.point.y - query_point.y;
+
+            int partition_idx = getPartitionIndex(dx, dy, partitions.size());
+
+            const auto& partition = partitions[partition_idx];
+
+            // Check if user is in pruned area of this partition
+            double dist_to_q = entry.point.distance_to(query_point);
+            if (partition.boundary_arc != INFINITY &&
+                dist_to_q > partition.boundary_arc) {
+                is_pruned = true;
             }
 
             if (!is_pruned) {
@@ -903,13 +938,3 @@ struct PQEntry {
         return distance > other.distance;
     }
 };
-
-// // Helper function to calculate minimum distance from point to rectangle
-// inline double min_distance_to_rect(const Point& p, const Rectangle& rect) {
-//     double dx = 0, dy = 0;
-//     if (p.x < rect.min_x) dx = rect.min_x - p.x;
-//     else if (p.x > rect.max_x) dx = p.x - rect.max_x;
-//     if (p.y < rect.min_y) dy = rect.min_y - p.y;
-//     else if (p.y > rect.max_y) dy = p.y - rect.max_y;
-//     return sqrt(dx * dx + dy * dy);
-// }

@@ -73,34 +73,34 @@ public:
         }
     }
 
-    // Check if point is above the line (positive side)
-    bool is_above(const Point& point) const {
-        return evaluate(point) > 0;
-    }
+    // // Check if point is above the line (positive side)
+    // bool is_above(const Point& point) const {
+    //     return evaluate(point) > 0;
+    // }
 
-    // Check if point is below the line (negative side)
-    bool is_below(const Point& point) const {
-        return evaluate(point) < 0;
-    }
+    // // Check if point is below the line (negative side)
+    // bool is_below(const Point& point) const {
+    //     return evaluate(point) < 0;
+    // }
 
-    // Check if point is on the line
-    bool is_on_line(const Point& point, double epsilon = 1e-9) const {
-        return abs(evaluate(point)) < epsilon;
-    }
+    // // Check if point is on the line
+    // bool is_on_line(const Point& point, double epsilon = 1e-9) const {
+    //     return abs(evaluate(point)) < epsilon;
+    // }
 
-    // Distance from point to line
-    double distance_to_point(const Point& point) const {
-        if (is_vertical) {
-            return abs(point.x - x_val);
-        } else {
-            return abs(point.y - (a * point.x + b)) / sqrt(a * a + 1);
-        }
-    }
+    // // Distance from point to line
+    // double distance_to_point(const Point& point) const {
+    //     if (is_vertical) {
+    //         return abs(point.x - x_val);
+    //     } else {
+    //         return abs(point.y - (a * point.x + b)) / sqrt(a * a + 1);
+    //     }
+    // }
 
-    // Set the valid side (1 for above/right, 0 for below/left)
-    void set_valid_side(int side) {
-        valid_side = side;
-    }
+    // // Set the valid side (1 for above/right, 0 for below/left)
+    // void set_valid_side(int side) {
+    //     valid_side = side;
+    // }
 
     // Check if point is on the valid side for query processing
     bool is_on_valid_side(const Point& point) const {
@@ -161,29 +161,29 @@ LinePosition check_rectangle_line_position(const Rectangle& rect, const Line& li
     }
 }
 
-// Convenience function to check if RStarTree node is all above the line
-bool is_node_all_above_line(shared_ptr<RStarNode> node, const Line& line) {
-    Rectangle mbr = node->get_mbr();
-    return check_rectangle_line_position(mbr, line) == LinePosition::ALL_ABOVE;
-}
+// // Convenience function to check if RStarTree node is all above the line
+// bool is_node_all_above_line(shared_ptr<RStarNode> node, const Line& line) {
+//     Rectangle mbr = node->get_mbr();
+//     return check_rectangle_line_position(mbr, line) == LinePosition::ALL_ABOVE;
+// }
 
-// Convenience function to check if RStarTree node is all below the line
-bool is_node_all_below_line(shared_ptr<RStarNode> node, const Line& line) {
-    Rectangle mbr = node->get_mbr();
-    return check_rectangle_line_position(mbr, line) == LinePosition::ALL_BELOW;
-}
+// // Convenience function to check if RStarTree node is all below the line
+// bool is_node_all_below_line(shared_ptr<RStarNode> node, const Line& line) {
+//     Rectangle mbr = node->get_mbr();
+//     return check_rectangle_line_position(mbr, line) == LinePosition::ALL_BELOW;
+// }
 
-// Function to check if node can be pruned based on line constraint
-bool can_prune_node_by_line(shared_ptr<RStarNode> node, const Line& line, bool want_above) {
-    Rectangle mbr = node->get_mbr();
-    LinePosition pos = check_rectangle_line_position(mbr, line);
+// // Function to check if node can be pruned based on line constraint
+// bool can_prune_node_by_line(shared_ptr<RStarNode> node, const Line& line, bool want_above) {
+//     Rectangle mbr = node->get_mbr();
+//     LinePosition pos = check_rectangle_line_position(mbr, line);
 
-    if (want_above) {
-        return pos == LinePosition::ALL_BELOW;  // Prune if all below when we want above
-    } else {
-        return pos == LinePosition::ALL_ABOVE;  // Prune if all above when we want below
-    }
-}
+//     if (want_above) {
+//         return pos == LinePosition::ALL_BELOW;  // Prune if all below when we want above
+//     } else {
+//         return pos == LinePosition::ALL_ABOVE;  // Prune if all above when we want below
+//     }
+// }
 
 // Function to check if node can be pruned based on line's valid side
 bool can_prune_node_by_valid_side(shared_ptr<RStarNode> node, const Line& line) {
@@ -291,15 +291,15 @@ void dfs_rknn_traverse(shared_ptr<RStarNode> node, const vector<Line>& bisectors
     }
 }
 
-void get_rknn_candidates(
-    RStarTree* rtree,
-    const vector<Line>& bisectors,
-    vector<Point>& rknn_candidates,
-    int k
-) {
-    rknn_candidates.clear();
-    dfs_rknn_traverse(rtree->get_root(), bisectors, rknn_candidates, k);
-}
+// void get_rknn_candidates(
+//     RStarTree* rtree,
+//     const vector<Line>& bisectors,
+//     vector<Point>& rknn_candidates,
+//     int k
+// ) {
+//     rknn_candidates.clear();
+//     dfs_rknn_traverse(rtree->get_root(), bisectors, rknn_candidates, k);
+// }
 
 // Priority Queue Entry for R*-tree traversal with bisector creation
 struct PQEntry {

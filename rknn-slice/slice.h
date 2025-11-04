@@ -12,248 +12,6 @@
 const double tan30 = 0.57735026919;  // tan(π/6) = 1/√3
 const double tan60 = 1.73205080757;  // tan(π/3) = √3
 
-// 2D Line class
-class Line {
-public:
-    double a, b;     // For y = ax + b (non-vertical lines)
-    double x_val;    // For vertical lines: x = x_val
-    bool is_vertical;
-    int valid_side;  // 1 for above(when vertical: right), 0 for below(when vertical: left)
-
-    Line() : a(0), b(0), x_val(0), is_vertical(false), valid_side(1) {}
-
-    // Constructor from two points
-    Line(const Point& p1, const Point& p2) {
-        if (p1.x == p2.x) {
-            // Vertical line: x = constant
-            is_vertical = true;
-            x_val = p1.x;
-            a = 0;
-            b = 0;
-        } else {
-            // Non-vertical line: y = ax + b
-            is_vertical = false;
-            a = (p2.y - p1.y) / (p2.x - p1.x);
-            b = p1.y - a * p1.x;
-            x_val = 0;
-        }
-        valid_side = 1;  // Default to above/right as valid side
-    }
-
-    // Constructor from slope-intercept form: y = mx + b
-    Line(double slope, double y_intercept) {
-        if (std::isinf(slope)) {
-            is_vertical = true;
-            x_val = y_intercept;  // In this case, y_intercept represents x-coordinate
-            a = 0;
-            b = 0;
-        } else {
-            is_vertical = false;
-            a = slope;
-            b = y_intercept;
-            x_val = 0;
-        }
-        valid_side = 1;  // Default to above/right as valid side
-    }
-
-    // Constructor from coefficients (convert ax + by + c = 0 to our format)
-    Line(double coeff_a, double coeff_b, double coeff_c) {
-        if (coeff_b == 0) {
-            // Vertical line: ax + c = 0 -> x = -c/a
-            is_vertical = true;
-            x_val = -coeff_c / coeff_a;
-            a = 0;
-            b = 0;
-        } else {
-            // Non-vertical line: ax + by + c = 0 -> y = (-a/b)x + (-c/b)
-            is_vertical = false;
-            a = -coeff_a / coeff_b;
-            b = -coeff_c / coeff_b;
-            x_val = 0;
-        }
-        valid_side = 1;  // Default to above/right as valid side
-    }
-
-    // Evaluate line equation at point
-    double evaluate(const Point& point) const {
-        if (is_vertical) {
-            return point.x - x_val;  // Distance from vertical line
-        } else {
-            return point.y - (a * point.x + b);  // Distance from y = ax + b
-        }
-    }
-
-    // Check if point is above the line (positive side)
-    bool is_above(const Point& point) const {
-        return evaluate(point) > 0;
-    }
-
-    // Check if point is below the line (negative side)
-    bool is_below(const Point& point) const {
-        return evaluate(point) < 0;
-    }
-
-    // Check if point is on the line
-    bool is_on_line(const Point& point, double epsilon = 1e-9) const {
-        return abs(evaluate(point)) < epsilon;
-    }
-
-    // Distance from point to line
-    double distance_to_point(const Point& point) const {
-        if (is_vertical) {
-            return abs(point.x - x_val);
-        } else {
-            return abs(point.y - (a * point.x + b)) / sqrt(a * a + 1);
-        }
-    }
-
-    // Set the valid side (1 for above/right, 0 for below/left)
-    void set_valid_side(int side) {
-        valid_side = side;
-    }
-
-    // Check if point is on the valid side for query processing
-    bool is_on_valid_side(const Point& point) const {
-        if (valid_side == 1) {
-            // Valid side is above (for non-vertical) or right (for vertical)
-            if (is_vertical) {
-                return point.x >= x_val;  // Right side of vertical line
-            } else {
-                return point.y >= (a * point.x + b);  // Above or on the line
-            }
-        } else {
-            // Valid side is below (for non-vertical) or left (for vertical)
-            if (is_vertical) {
-                return point.x <= x_val;  // Left side of vertical line
-            } else {
-                return point.y <= (a * point.x + b);  // Below or on the line
-            }
-        }
-    }
-};
-
-// Line position enumeration
-enum class LinePosition {
-    ALL_ABOVE,    // All points of rectangle are above the line
-    ALL_BELOW,    // All points of rectangle are below the line
-    INTERSECTS    // Rectangle intersects or straddles the line
-};
-
-// Check if a rectangle is entirely on one side of a line
-LinePosition check_rectangle_line_position(const Rectangle& rect, const Line& line) {
-    // Check all four corners of the rectangle
-    Point corners[4] = {
-        Point(rect.min_x, rect.min_y),  // bottom-left
-        Point(rect.max_x, rect.min_y),  // bottom-right
-        Point(rect.min_x, rect.max_y),  // top-left
-        Point(rect.max_x, rect.max_y)   // top-right
-    };
-
-    int above_count = 0;
-    int below_count = 0;
-
-    for (int i = 0; i < 4; i++) {
-        double eval = line.evaluate(corners[i]);
-        if (eval > 0) {
-            above_count++;
-        } else if (eval < 0) {
-            below_count++;
-        }
-        // Points exactly on the line are considered as intersecting
-    }
-
-    if (above_count == 4) {
-        return LinePosition::ALL_ABOVE;
-    } else if (below_count == 4) {
-        return LinePosition::ALL_BELOW;
-    } else {
-        return LinePosition::INTERSECTS;
-    }
-}
-
-// Convenience function to check if RStarTree node is all above the line
-bool is_node_all_above_line(shared_ptr<RStarNode> node, const Line& line) {
-    Rectangle mbr = node->get_mbr();
-    return check_rectangle_line_position(mbr, line) == LinePosition::ALL_ABOVE;
-}
-
-// Convenience function to check if RStarTree node is all below the line
-bool is_node_all_below_line(shared_ptr<RStarNode> node, const Line& line) {
-    Rectangle mbr = node->get_mbr();
-    return check_rectangle_line_position(mbr, line) == LinePosition::ALL_BELOW;
-}
-
-// Function to check if node can be pruned based on line constraint
-bool can_prune_node_by_line(shared_ptr<RStarNode> node, const Line& line, bool want_above) {
-    Rectangle mbr = node->get_mbr();
-    LinePosition pos = check_rectangle_line_position(mbr, line);
-
-    if (want_above) {
-        return pos == LinePosition::ALL_BELOW;  // Prune if all below when we want above
-    } else {
-        return pos == LinePosition::ALL_ABOVE;  // Prune if all above when we want below
-    }
-}
-
-// Function to check if node can be pruned based on line's valid side
-bool can_prune_node_by_valid_side(shared_ptr<RStarNode> node, const Line& line) {
-    Rectangle mbr = node->get_mbr();
-    LinePosition pos = check_rectangle_line_position(mbr, line);
-
-    if (line.valid_side == 1) {
-        // Valid side is above/right, prune if all points are below/left
-        return pos == LinePosition::ALL_BELOW;
-    } else {
-        // Valid side is below/left, prune if all points are above/right
-        return pos == LinePosition::ALL_ABOVE;
-    }
-}
-
-// Function to calculate the perpendicular bisector of two points
-Line perpendicular_bisector(const Point& p1, const Point& p2) { // p1 should be the query point
-    // Midpoint of the two points
-    double mid_x = (p1.x + p2.x) / 2.0;
-    double mid_y = (p1.y + p2.y) / 2.0;
-
-    Line bisector;
-
-    // Handle vertical line case (p1.x == p2.x)
-    if (p1.x == p2.x) {
-        // Original line is vertical, perpendicular bisector is horizontal
-        // Horizontal line: y = mid_y (slope = 0, y-intercept = mid_y)
-        bisector = Line(0, mid_y);
-    }
-    // Handle horizontal line case (p1.y == p2.y)
-    else if (p1.y == p2.y) {
-        // Original line is horizontal, perpendicular bisector is vertical
-        // Vertical line: x = mid_x
-        bisector = Line(INFINITY, mid_x);
-    }
-    else {
-        // Calculate slope of original line
-        double original_slope = (p2.y - p1.y) / (p2.x - p1.x);
-
-        // Perpendicular slope is negative reciprocal
-        double perp_slope = -1.0 / original_slope;
-
-        // Calculate y-intercept: y = mx + b -> b = y - mx
-        double y_intercept = mid_y - perp_slope * mid_x;
-
-        bisector = Line(perp_slope, y_intercept);
-    }
-
-    // Set valid side based on where p1 is relative to the bisector
-    if (bisector.is_vertical) {
-        // For vertical line, check if p1 is to the right (1) or left (0)
-        bisector.valid_side = (p1.x >= bisector.x_val) ? 1 : 0;
-    } else {
-        // For non-vertical line, check if p1 is above (1) or below (0)
-        bisector.valid_side = (p1.y >= (bisector.a * p1.x + bisector.b)) ? 1 : 0;
-    }
-
-    return bisector;
-}
-
 // Helper function to normalize angle to [0, 2π)
 inline double normalize_angle(double angle) {
     while (angle < 0) angle += 2 * M_PI;
@@ -310,10 +68,6 @@ struct AngularPartition {
             return true;  // Center belongs to all partitions conceptually
         }
 
-        // Use the same strategy as getPartitionIndex
-        // For 12 partitions, each covers 30 degrees (π/6 radians)
-        // Using global tan30 and tan60 constants
-
         // Determine which partition the point belongs to using slopes
         int point_partition = 0;
 
@@ -369,13 +123,6 @@ struct AngularPartition {
         return point_partition == partition_id;
     }
 
-    // Get description of partition for debugging
-    string get_description() const {
-        double start_deg = angle_start * 180.0 / M_PI;
-        double end_deg = angle_end * 180.0 / M_PI;
-        return "Partition " + to_string(partition_id) +
-               ": [" + to_string(start_deg) + "°, " + to_string(end_deg) + "°)";
-    }
 };
 
 // Calculate the maximum subtended angle between a point x and a partition P
@@ -387,9 +134,6 @@ double maxAngle(const Point& query_point, const Point& x, const AngularPartition
     double dy = x.y - query_point.y;
     double angle_to_x = normalize_angle(atan2(dy, dx));
 
-    // The maximum subtended angle occurs between x and the partition boundary
-    // that is furthest from x (angularly)
-
     // Calculate angular distances to both boundaries of the partition
     double dist_to_start = angular_distance(angle_to_x, partition.angle_start);
     double dist_to_end = angular_distance(angle_to_x, partition.angle_end);
@@ -399,9 +143,6 @@ double maxAngle(const Point& query_point, const Point& x, const AngularPartition
 
     // Special case: if the partition wraps around (crosses 0/2π boundary)
     if (partition.angle_start > partition.angle_end) {
-        // For wrap-around partitions, we need to consider the angular span differently
-        double partition_span = (2 * M_PI - partition.angle_start) + partition.angle_end;
-
         // If x is inside the partition
         if (partition.contains_point(x)) {
             // Maximum angle is to the furthest boundary
@@ -414,41 +155,6 @@ double maxAngle(const Point& query_point, const Point& x, const AngularPartition
     }
 
     return max_subtended_angle;
-}
-
-// Alternative implementation that considers the entire angular span of the partition
-double maxAngleSpan(const Point& query_point, const Point& x, const AngularPartition& partition) {
-    // Calculate the angle from query_point to x
-    double dx = x.x - query_point.x;
-    double dy = x.y - query_point.y;
-    double angle_to_x = normalize_angle(atan2(dy, dx));
-
-    // Calculate the angular span of the partition
-    double partition_span;
-    if (partition.angle_end >= partition.angle_start) {
-        partition_span = partition.angle_end - partition.angle_start;
-    } else {
-        // Wrap-around case
-        partition_span = (2 * M_PI - partition.angle_start) + partition.angle_end;
-    }
-
-    // If point x is within the partition
-    if (partition.contains_point(x)) {
-        // Maximum subtended angle is from x to the furthest boundary
-        double dist_to_start = angular_distance(angle_to_x, partition.angle_start);
-        double dist_to_end = angular_distance(angle_to_x, partition.angle_end);
-        return max(dist_to_start, dist_to_end);
-    } else {
-        // If point x is outside the partition
-        // Maximum subtended angle is from x to the furthest point in the partition
-
-        // Calculate distances to both boundaries
-        double dist_to_start = angular_distance(angle_to_x, partition.angle_start);
-        double dist_to_end = angular_distance(angle_to_x, partition.angle_end);
-
-        // The maximum occurs at the boundary that is angularly furthest from x
-        return max(dist_to_start, dist_to_end);
-    }
 }
 
 // Calculate the minimum subtended angle between a point x and a partition P
@@ -464,9 +170,6 @@ double minAngle(const Point& query_point, const Point& x, const AngularPartition
     if (partition.contains_point(x)) {
         return 0.0;
     }
-
-    // If x is outside the partition, the minimum subtended angle
-    // occurs between x and the closest boundary of the partition
 
     // Calculate angular distances to both boundaries
     double dist_to_start = angular_distance(angle_to_x, partition.angle_start);
@@ -490,46 +193,6 @@ double minAngle(const Point& query_point, const Point& x, const AngularPartition
     }
 
     return min_subtended_angle;
-}
-
-// Alternative implementation with more explicit logic
-double minAngleAlt(const Point& query_point, const Point& x, const AngularPartition& partition) {
-    // If x is at the same position as query_point, angle is undefined
-    double dx = x.x - query_point.x;
-    double dy = x.y - query_point.y;
-
-    if (dx == 0 && dy == 0) {
-        return 0.0; // or could return NaN or handle specially
-    }
-
-    double angle_to_x = normalize_angle(atan2(dy, dx));
-
-    // If point x is within the partition, the minimum angle is 0
-    // because x itself is a point in the partition
-    if (partition.contains_point(x)) {
-        return 0.0;
-    }
-
-    // For x outside the partition, find minimum angular distance to partition
-    double dist_to_start = angular_distance(angle_to_x, partition.angle_start);
-    double dist_to_end = angular_distance(angle_to_x, partition.angle_end);
-
-    // The minimum angle is to the nearer boundary
-    return min(dist_to_start, dist_to_end);
-}
-
-// Helper function to check if an angle is between two angles (considering wrap-around)
-bool isAngleBetween(double angle, double start, double end) {
-    angle = normalize_angle(angle);
-    start = normalize_angle(start);
-    end = normalize_angle(end);
-
-    if (start <= end) {
-        return angle >= start && angle <= end;
-    } else {
-        // Wrap-around case
-        return angle >= start || angle <= end;
-    }
 }
 
 // Create 12 equally sized angular partitions around a query point
@@ -695,7 +358,7 @@ void pruneSpace(vector<AngularPartition>& partitions,
             }
 
             // Use max-heap to maintain k smallest upper bounds
-            if (partition.upper_bounds_heap.size() < k) {
+            if ((int)partition.upper_bounds_heap.size() < k) {
                 // If we have fewer than k elements, just add to heap
                 partition.upper_bounds_heap.push(upper_bound);
                 // Update boundary_arc to the largest in heap (k-th smallest so far)
@@ -737,16 +400,7 @@ inline int getPartitionIndex(double dx, double dy) {
     // Handle special cases
     if (dx == 0 && dy == 0) return 0;  // Point at query location
 
-    // For 12 partitions, each covers 30 degrees (π/6 radians)
-    // We can determine partition using slopes and quadrants
-
-    // Determine quadrant and calculate partition
-    // Partition 0: angle [0, π/6), Partition 1: [π/6, π/3), etc.
-
     int partition_idx = 0;
-
-    // Use slopes to determine partition without computing actual angle
-    // Using global tan30 and tan60 constants
 
     if (dx > 0) {  // Right half (partitions 0-2, 10-11)
         if (dy >= 0) {  // First quadrant (partitions 0-2)
@@ -869,7 +523,6 @@ bool isCompletelyPruned(const Rectangle& mbr,
         // Check top and bottom edges if spans horizontally
         if (spans_horizontally) {
             // Top edge at query.x
-            double dx = 0;
             double dy_top = mbr.max_y - query_point.y;
             double dy_bottom = mbr.min_y - query_point.y;
 
@@ -884,7 +537,6 @@ bool isCompletelyPruned(const Rectangle& mbr,
         // Check left and right edges if spans vertically
         if (spans_vertically) {
             // Side edges at query.y
-            double dy = 0;
             double dx_right = mbr.max_x - query_point.x;
             double dx_left = mbr.min_x - query_point.x;
 
@@ -970,63 +622,6 @@ void traverseUserTree(shared_ptr<RStarNode> node,
         }
     }
 }
-
-// void dfs_rknn_traverse(shared_ptr<RStarNode> node, const vector<Line>& bisectors,
-//                        vector<Point>& rknn_candidates, int k) {
-//     if (!node) return;
-
-//     if (node->is_leaf) {
-//         // For leaf nodes, check each point
-//         for (const auto& entry : node->entries) {
-//             int violations = 0;
-
-//             // Count how many bisectors this point violates (not on valid side)
-//             for (const auto& bisector : bisectors) {
-//                 if (!bisector.is_on_valid_side(entry.point)) {
-//                     violations++;
-//                     if (violations >= k) {
-//                         break; // Early termination if violations exceed k
-//                     }
-//                 }
-//             }
-
-//             // If violations <= k, this point is a candidate
-//             if (violations < k) {
-//                 rknn_candidates.push_back(entry.point);
-//             }
-//         }
-//     } else {
-//         // For internal nodes, check if we can prune the subtree
-//         for (const auto& entry : node->entries) {
-//             int violations = 0;
-
-//             // Count how many bisectors this node's MBR violates
-//             for (const auto& bisector : bisectors) {
-//                 if (can_prune_node_by_valid_side(entry.child, bisector)) {
-//                     violations++;
-//                     if (violations >= k) {
-//                         break; // Early termination if violations exceed k
-//                     }
-//                 }
-//             }
-
-//             // If violations < k, continue DFS on this child
-//             if (violations < k) {
-//                 dfs_rknn_traverse(entry.child, bisectors, rknn_candidates, k);
-//             }
-//         }
-//     }
-// }
-
-// void get_rknn_candidates(
-//     RStarTree* rtree,
-//     const vector<Line>& bisectors,
-//     vector<Point>& rknn_candidates,
-//     int k
-// ) {
-//     rknn_candidates.clear();
-//     dfs_rknn_traverse(rtree->get_root(), bisectors, rknn_candidates, k);
-// }
 
 // Priority Queue Entry for R*-tree traversal with bisector creation
 struct PQEntry {

@@ -32,7 +32,6 @@
 #include <string>
 #include <vector>
 
-// #include "point.h"
 #include "RStarTree2D.h"
 
 //

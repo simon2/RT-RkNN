@@ -1,10 +1,16 @@
 #include "RStarTree2D.h"
 #include <cmath>
 #include <queue>
+#include <set>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+// Global constants for partition calculations
+// For 12 partitions, each covers 30 degrees (π/6 radians)
+const double tan30 = 0.57735026919;  // tan(π/6) = 1/√3
+const double tan60 = 1.73205080757;  // tan(π/3) = √3
 
 // 2D Line class
 class Line {
@@ -299,22 +305,68 @@ struct AngularPartition {
         double dx = p.x - center.x;
         double dy = p.y - center.y;
 
-        // Calculate angle from center to point
-        double angle = atan2(dy, dx);
-
-        // Normalize angle to [0, 2π)
-        if (angle < 0) {
-            angle += 2 * M_PI;
+        // Special case: point is at center
+        if (dx == 0 && dy == 0) {
+            return true;  // Center belongs to all partitions conceptually
         }
 
-        // Handle normal case (no wrap-around)
-        if (angle_start <= angle_end) {
-            return angle >= angle_start && angle < angle_end;
+        // Use the same strategy as getPartitionIndex
+        // For 12 partitions, each covers 30 degrees (π/6 radians)
+        // Using global tan30 and tan60 constants
+
+        // Determine which partition the point belongs to using slopes
+        int point_partition = 0;
+
+        if (dx > 0) {  // Right half (partitions 0-2, 10-11)
+            if (dy >= 0) {  // First quadrant (partitions 0-2)
+                double slope = dy / dx;
+                if (slope < tan30) {
+                    point_partition = 0;
+                } else if (slope < tan60) {
+                    point_partition = 1;
+                } else {
+                    point_partition = 2;
+                }
+            } else {  // Fourth quadrant (partitions 10-11)
+                double slope = -dy / dx;  // Make positive for comparison
+                if (slope < tan30) {
+                    point_partition = 11;
+                } else if (slope < tan60) {
+                    point_partition = 10;
+                } else {
+                    point_partition = 9;
+                }
+            }
+        } else if (dx < 0) {  // Left half (partitions 3-8)
+            if (dy >= 0) {  // Second quadrant (partitions 3-5)
+                double slope = -dy / dx;  // Make positive for comparison
+                if (slope < tan30) {
+                    point_partition = 5;
+                } else if (slope < tan60) {
+                    point_partition = 4;
+                } else {
+                    point_partition = 3;
+                }
+            } else {  // Third quadrant (partitions 6-8)
+                double slope = dy / dx;  // Both negative, so positive
+                if (slope < tan30) {
+                    point_partition = 6;
+                } else if (slope < tan60) {
+                    point_partition = 7;
+                } else {
+                    point_partition = 8;
+                }
+            }
+        } else {  // dx == 0, point is directly above or below
+            if (dy > 0) {
+                point_partition = 2;  // Directly above (90°)
+            } else {
+                point_partition = 8;  // Directly below (270°)
+            }
         }
-        // Handle wrap-around case (partition crosses 0/2π boundary)
-        else {
-            return angle >= angle_start || angle < angle_end;
-        }
+
+        // Check if the calculated partition matches this partition
+        return point_partition == partition_id;
     }
 
     // Get description of partition for debugging
@@ -681,7 +733,7 @@ void pruneSpace(vector<AngularPartition>& partitions,
 
 // Helper function to get partition index using relative positions
 // Avoids expensive trigonometric calculations
-inline int getPartitionIndex(double dx, double dy, int num_partitions) {
+inline int getPartitionIndex(double dx, double dy) {
     // Handle special cases
     if (dx == 0 && dy == 0) return 0;  // Point at query location
 
@@ -694,9 +746,7 @@ inline int getPartitionIndex(double dx, double dy, int num_partitions) {
     int partition_idx = 0;
 
     // Use slopes to determine partition without computing actual angle
-    // tan(30°) = 1/√3 ≈ 0.577, tan(60°) = √3 ≈ 1.732
-    const double tan30 = 0.57735026919;  // tan(π/6)
-    const double tan60 = 1.73205080757;  // tan(π/3)
+    // Using global tan30 and tan60 constants
 
     if (dx > 0) {  // Right half (partitions 0-2, 10-11)
         if (dy >= 0) {  // First quadrant (partitions 0-2)
@@ -750,21 +800,14 @@ inline int getPartitionIndex(double dx, double dy, int num_partitions) {
 }
 
 // Check if a user u is a reverse k-nearest neighbor of query q
-bool isRkNN(const Point& u, const Point& q,
-            const vector<AngularPartition>& partitions, int k) {
-    // Directly calculate which partition u lies in using relative positions
-    double dx = u.x - q.x;
-    double dy = u.y - q.y;
-
-    int partition_idx = getPartitionIndex(dx, dy, partitions.size());
-
-    const AngularPartition* user_partition = &partitions[partition_idx];
-
-    double dist_uq = u.distance_to(q);
+bool isRkNN(const Point& u, double dist_uq,
+            const AngularPartition& user_partition, int k) {
+    // This function now takes only the specific partition that u lies in
+    // and the pre-calculated distance from u to q
     int count = 0;
 
     // Check facilities in sigList in ascending order of lower bound
-    for (const auto& fb : user_partition->sigList) {
+    for (const auto& fb : user_partition.sigList) {
         // If dist(u,q) <= lower bound of f to P, u is RkNN
         if (dist_uq <= fb.lower_bound) {
             return true;
@@ -787,34 +830,92 @@ bool isRkNN(const Point& u, const Point& q,
 bool isCompletelyPruned(const Rectangle& mbr,
                         const vector<AngularPartition>& partitions,
                         const Point& query_point) {
-    // Early exit: compute minimum distance once
-    double min_dist_to_q = min_distance_to_rect(query_point, mbr);
-
-    // Find the maximum boundary arc across ALL partitions
-    // An MBR is completely pruned only if it's beyond ALL boundary arcs
-    double max_boundary_arc = 0;
-    bool has_valid_partition = false;
-
-    for (const auto& partition : partitions) {
-        // Skip partitions with infinite boundary arc
-        if (partition.boundary_arc == INFINITY) {
-            continue;
-        }
-
-        has_valid_partition = true;
-        if (partition.boundary_arc > max_boundary_arc) {
-            max_boundary_arc = partition.boundary_arc;
-        }
-    }
-
-    // If no partition has a valid boundary arc, can't prune
-    if (!has_valid_partition) {
+    // If query point is inside the MBR, it cannot be pruned
+    if (query_point.x >= mbr.min_x && query_point.x <= mbr.max_x &&
+        query_point.y >= mbr.min_y && query_point.y <= mbr.max_y) {
         return false;
     }
 
-    // MBR is completely pruned if its closest point is beyond
-    // the maximum boundary arc (not minimum!)
-    return min_dist_to_q > max_boundary_arc;
+    // Get the four corners of the MBR
+    Point corners[4] = {
+        Point(mbr.min_x, mbr.min_y),
+        Point(mbr.max_x, mbr.min_y),
+        Point(mbr.min_x, mbr.max_y),
+        Point(mbr.max_x, mbr.max_y)
+    };
+
+    // Find which partitions the MBR overlaps with
+    // An MBR overlaps with a partition if any of its corners are in that partition
+    // or if the MBR crosses through the partition
+
+    // First, find which partitions contain each corner
+    set<int> overlapping_partitions;
+    for (int i = 0; i < 4; i++) {
+        double dx = corners[i].x - query_point.x;
+        double dy = corners[i].y - query_point.y;
+        int partition_idx = getPartitionIndex(dx, dy);
+        overlapping_partitions.insert(partition_idx);
+    }
+
+    // Also check if MBR spans across the query point
+    // If it does, it might overlap with additional partitions
+    bool spans_horizontally = (mbr.min_x < query_point.x) && (mbr.max_x > query_point.x);
+    bool spans_vertically = (mbr.min_y < query_point.y) && (mbr.max_y > query_point.y);
+
+    if (spans_horizontally || spans_vertically) {
+        // MBR crosses through the query point region
+        // Need to check edges for additional partition overlaps
+
+        // Check top and bottom edges if spans horizontally
+        if (spans_horizontally) {
+            // Top edge at query.x
+            double dx = 0;
+            double dy_top = mbr.max_y - query_point.y;
+            double dy_bottom = mbr.min_y - query_point.y;
+
+            if (dy_top > 0) {
+                overlapping_partitions.insert(getPartitionIndex(0, dy_top));
+            }
+            if (dy_bottom < 0) {
+                overlapping_partitions.insert(getPartitionIndex(0, dy_bottom));
+            }
+        }
+
+        // Check left and right edges if spans vertically
+        if (spans_vertically) {
+            // Side edges at query.y
+            double dy = 0;
+            double dx_right = mbr.max_x - query_point.x;
+            double dx_left = mbr.min_x - query_point.x;
+
+            if (dx_right > 0) {
+                overlapping_partitions.insert(getPartitionIndex(dx_right, 0));
+            }
+            if (dx_left < 0) {
+                overlapping_partitions.insert(getPartitionIndex(dx_left, 0));
+            }
+        }
+    }
+
+    // Now check if MBR is pruned for all overlapping partitions
+    double min_dist_to_q = min_distance_to_rect(query_point, mbr);
+
+    for (int partition_idx : overlapping_partitions) {
+        const AngularPartition& partition = partitions[partition_idx];
+
+        // If this partition has infinite boundary arc, cannot prune
+        if (partition.boundary_arc == INFINITY) {
+            return false;
+        }
+
+        // If MBR's closest point is within this partition's boundary arc, cannot prune
+        if (min_dist_to_q <= partition.boundary_arc) {
+            return false;
+        }
+    }
+
+    // MBR is beyond the boundary arc of all partitions it overlaps with
+    return true;
 }
 
 // Traverse user R*-tree to find RkNN candidates
@@ -841,20 +942,21 @@ void traverseUserTree(shared_ptr<RStarNode> node,
             double dx = entry.point.x - query_point.x;
             double dy = entry.point.y - query_point.y;
 
-            int partition_idx = getPartitionIndex(dx, dy, partitions.size());
+            int partition_idx = getPartitionIndex(dx, dy);
 
             const auto& partition = partitions[partition_idx];
 
             // Check if user is in pruned area of this partition
             double dist_to_q = entry.point.distance_to(query_point);
-            if (partition.boundary_arc != INFINITY &&
-                dist_to_q > partition.boundary_arc) {
+            if (dist_to_q > partition.boundary_arc) {
                 is_pruned = true;
+                // cout << "prune a point" << endl;
             }
 
             if (!is_pruned) {
                 // Verify if this user is RkNN
-                if (isRkNN(entry.point, query_point, partitions, k)) {
+                // Pass only the partition that the user lies in and the pre-calculated distance
+                if (isRkNN(entry.point, dist_to_q, partition, k)) {
                     rknn_results.push_back(entry.point);
                 }
             }
@@ -869,62 +971,62 @@ void traverseUserTree(shared_ptr<RStarNode> node,
     }
 }
 
-void dfs_rknn_traverse(shared_ptr<RStarNode> node, const vector<Line>& bisectors,
-                       vector<Point>& rknn_candidates, int k) {
-    if (!node) return;
+// void dfs_rknn_traverse(shared_ptr<RStarNode> node, const vector<Line>& bisectors,
+//                        vector<Point>& rknn_candidates, int k) {
+//     if (!node) return;
 
-    if (node->is_leaf) {
-        // For leaf nodes, check each point
-        for (const auto& entry : node->entries) {
-            int violations = 0;
+//     if (node->is_leaf) {
+//         // For leaf nodes, check each point
+//         for (const auto& entry : node->entries) {
+//             int violations = 0;
 
-            // Count how many bisectors this point violates (not on valid side)
-            for (const auto& bisector : bisectors) {
-                if (!bisector.is_on_valid_side(entry.point)) {
-                    violations++;
-                    if (violations >= k) {
-                        break; // Early termination if violations exceed k
-                    }
-                }
-            }
+//             // Count how many bisectors this point violates (not on valid side)
+//             for (const auto& bisector : bisectors) {
+//                 if (!bisector.is_on_valid_side(entry.point)) {
+//                     violations++;
+//                     if (violations >= k) {
+//                         break; // Early termination if violations exceed k
+//                     }
+//                 }
+//             }
 
-            // If violations <= k, this point is a candidate
-            if (violations < k) {
-                rknn_candidates.push_back(entry.point);
-            }
-        }
-    } else {
-        // For internal nodes, check if we can prune the subtree
-        for (const auto& entry : node->entries) {
-            int violations = 0;
+//             // If violations <= k, this point is a candidate
+//             if (violations < k) {
+//                 rknn_candidates.push_back(entry.point);
+//             }
+//         }
+//     } else {
+//         // For internal nodes, check if we can prune the subtree
+//         for (const auto& entry : node->entries) {
+//             int violations = 0;
 
-            // Count how many bisectors this node's MBR violates
-            for (const auto& bisector : bisectors) {
-                if (can_prune_node_by_valid_side(entry.child, bisector)) {
-                    violations++;
-                    if (violations >= k) {
-                        break; // Early termination if violations exceed k
-                    }
-                }
-            }
+//             // Count how many bisectors this node's MBR violates
+//             for (const auto& bisector : bisectors) {
+//                 if (can_prune_node_by_valid_side(entry.child, bisector)) {
+//                     violations++;
+//                     if (violations >= k) {
+//                         break; // Early termination if violations exceed k
+//                     }
+//                 }
+//             }
 
-            // If violations < k, continue DFS on this child
-            if (violations < k) {
-                dfs_rknn_traverse(entry.child, bisectors, rknn_candidates, k);
-            }
-        }
-    }
-}
+//             // If violations < k, continue DFS on this child
+//             if (violations < k) {
+//                 dfs_rknn_traverse(entry.child, bisectors, rknn_candidates, k);
+//             }
+//         }
+//     }
+// }
 
-void get_rknn_candidates(
-    RStarTree* rtree,
-    const vector<Line>& bisectors,
-    vector<Point>& rknn_candidates,
-    int k
-) {
-    rknn_candidates.clear();
-    dfs_rknn_traverse(rtree->get_root(), bisectors, rknn_candidates, k);
-}
+// void get_rknn_candidates(
+//     RStarTree* rtree,
+//     const vector<Line>& bisectors,
+//     vector<Point>& rknn_candidates,
+//     int k
+// ) {
+//     rknn_candidates.clear();
+//     dfs_rknn_traverse(rtree->get_root(), bisectors, rknn_candidates, k);
+// }
 
 // Priority Queue Entry for R*-tree traversal with bisector creation
 struct PQEntry {

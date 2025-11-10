@@ -271,11 +271,27 @@ inline double min_distance_to_rect(const Point& p, const Rectangle& rect) {
     return sqrt(dx * dx + dy * dy);
 }
 
+// Helper function to calculate minimum distance from point to line
+inline double min_distance_to_line(const Point& p, const Line& line) {
+    if (line.is_vertical) {
+        // For vertical line x = x_val, distance is simply |p.x - x_val|
+        return abs(p.x - line.x_val);
+    } else {
+        // For non-vertical line y = ax + b, use point-to-line distance formula
+        // Distance = |ax - y + b| / sqrt(a^2 + 1)
+        // Rearranging: |a*p.x - p.y + b| / sqrt(a^2 + 1)
+        double numerator = abs(line.a * p.x - p.y + line.b);
+        double denominator = sqrt(line.a * line.a + 1);
+        return numerator / denominator;
+    }
+}
+
 // Structure to represent a vertex (intersection point)
 struct Vertex {
     Point point;
     int pruning_count;  // Number of bisectors that can prune this vertex
     bool is_boundary;   // Whether this is a boundary vertex (corner of space)
+    double dist_to_q;   // Distance to query point
 
     Vertex(const Point& p, bool boundary = false)
         : point(p), pruning_count(0), is_boundary(boundary) {}

@@ -539,6 +539,7 @@ endfunction()
 
 add_subdirectory( test )
 add_subdirectory( rknn-rt )
+add_subdirectory( rknn-rt-inf )
 add_subdirectory( rknn-rt-direct )
 add_subdirectory( rknn-rt-all )
 add_subdirectory( rknn-tpl )

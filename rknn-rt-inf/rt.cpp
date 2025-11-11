@@ -293,10 +293,21 @@ int main( int argc, char* argv[] )
 
         // Initialize vertex list with the four corners of space boundaries
         vector<Vertex> vertices;
-        vertices.push_back(Vertex(Point(min_x, min_y), true));  // bottom-left
-        vertices.push_back(Vertex(Point(max_x, min_y), true));  // bottom-right
-        vertices.push_back(Vertex(Point(min_x, max_y), true));  // top-left
-        vertices.push_back(Vertex(Point(max_x, max_y), true));  // top-right
+        Vertex bl(Point(min_x, min_y), true);  // bottom-left
+        bl.dist_to_q = bl.point.distance_to(query_point);
+        vertices.push_back(bl);
+
+        Vertex br(Point(max_x, min_y), true);  // bottom-right
+        br.dist_to_q = br.point.distance_to(query_point);
+        vertices.push_back(br);
+
+        Vertex tl(Point(min_x, max_y), true);  // top-left
+        tl.dist_to_q = tl.point.distance_to(query_point);
+        vertices.push_back(tl);
+
+        Vertex tr(Point(max_x, max_y), true);  // top-right
+        tr.dist_to_q = tr.point.distance_to(query_point);
+        vertices.push_back(tr);
 
         // Priority queue-based bisector creation
         // Use min-heap priority queue (closest entries first)
@@ -312,6 +323,14 @@ int main( int argc, char* argv[] )
             pq.push(root_entry);
         }
 
+        double furthest_vertex_dist = 0.0;
+        for (const auto& vertex : vertices) {
+            if (vertex.dist_to_q > furthest_vertex_dist) {
+                furthest_vertex_dist = vertex.dist_to_q;
+            }
+        }
+        double neares_bisector_dist = numeric_limits<double>::max();
+
         // Process entries from priority queue
         while (!pq.empty()) {
             PQEntry current = pq.top();
@@ -320,179 +339,299 @@ int main( int argc, char* argv[] )
             if (current.is_point) {
                 // This is a point - create a bisector if it's not the query point itself
                 if (current.point.id != query_point.id) {
-                    Line new_bisector = perpendicular_bisector(query_point, current.point);
+                    // Common pruning logic for points
+                    bool can_prune = true;
+                    double dist_q = current.point.distance_to(query_point);
 
-                    // Update vertex pruning counts for existing vertices
-                    for (auto& vertex : vertices) {
-                        if (!new_bisector.is_on_valid_side(vertex.point)) {
-                            vertex.pruning_count++;
-                        }
+                    if (dist_q > 2 * furthest_vertex_dist) {
+                        can_prune = true;
                     }
+                    else if (dist_q < 2 * neares_bisector_dist) {
+                        can_prune = false;
+                    }
+                    else {
+                        // Shared extreme point finding and vertex checking logic
+                        const double eps = 1e-9;
 
-                    // Find intersections with space boundaries
-                    vector<Point> boundary_intersections = find_line_rectangle_intersections(
-                        new_bisector, space_boundaries);
+                        // First, identify extreme points on each boundary edge
+                        Point* left_min = nullptr;   // Leftmost point with min y on left boundary
+                        Point* left_max = nullptr;   // Leftmost point with max y on left boundary
+                        Point* right_min = nullptr;  // Rightmost point with min y on right boundary
+                        Point* right_max = nullptr;  // Rightmost point with max y on right boundary
+                        Point* bottom_min = nullptr; // Bottom point with min x on bottom boundary
+                        Point* bottom_max = nullptr; // Bottom point with max x on bottom boundary
+                        Point* top_min = nullptr;    // Top point with min x on top boundary
+                        Point* top_max = nullptr;    // Top point with max x on top boundary
 
-                    // Add new intersection vertices
-                    for (const auto& intersection : boundary_intersections) {
-                        // Check if this intersection point already exists (within tolerance)
-                        bool exists = false;
+                        // Find extreme points among boundary vertices with pruning_count < k
+                        for (auto& vertex : vertices) {
+                            if (vertex.is_boundary && vertex.pruning_count < (int)k) {
+                                // Check which boundary this vertex is on
+                                if (abs(vertex.point.x - space_boundaries.min_x) < eps) {
+                                    // Left boundary
+                                    if (!left_min || vertex.point.y < left_min->y) {
+                                        left_min = &vertex.point;
+                                    }
+                                    if (!left_max || vertex.point.y > left_max->y) {
+                                        left_max = &vertex.point;
+                                    }
+                                }
+                                if (abs(vertex.point.x - space_boundaries.max_x) < eps) {
+                                    // Right boundary
+                                    if (!right_min || vertex.point.y < right_min->y) {
+                                        right_min = &vertex.point;
+                                    }
+                                    if (!right_max || vertex.point.y > right_max->y) {
+                                        right_max = &vertex.point;
+                                    }
+                                }
+                                if (abs(vertex.point.y - space_boundaries.min_y) < eps) {
+                                    // Bottom boundary
+                                    if (!bottom_min || vertex.point.x < bottom_min->x) {
+                                        bottom_min = &vertex.point;
+                                    }
+                                    if (!bottom_max || vertex.point.x > bottom_max->x) {
+                                        bottom_max = &vertex.point;
+                                    }
+                                }
+                                if (abs(vertex.point.y - space_boundaries.max_y) < eps) {
+                                    // Top boundary
+                                    if (!top_min || vertex.point.x < top_min->x) {
+                                        top_min = &vertex.point;
+                                    }
+                                    if (!top_max || vertex.point.x > top_max->x) {
+                                        top_max = &vertex.point;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Check vertices to determine if we can prune
                         for (const auto& vertex : vertices) {
-                            if (abs(vertex.point.x - intersection.x) < 1e-9 &&
-                                abs(vertex.point.y - intersection.y) < 1e-9) {
-                                exists = true;
+                            bool should_consider = false;
+
+                            // Condition 1: vertex with pruning_count == k-1
+                            if (vertex.pruning_count == (int)k - 1) {
+                                should_consider = true;
+                            }
+                            // Condition 2: extreme boundary points with pruning_count < k
+                            else if (vertex.is_boundary && vertex.pruning_count < (int)k) {
+                                // Check if this vertex is one of the extreme points
+                                if ((left_min && abs(vertex.point.x - left_min->x) < eps && abs(vertex.point.y - left_min->y) < eps) ||
+                                    (left_max && abs(vertex.point.x - left_max->x) < eps && abs(vertex.point.y - left_max->y) < eps) ||
+                                    (right_min && abs(vertex.point.x - right_min->x) < eps && abs(vertex.point.y - right_min->y) < eps) ||
+                                    (right_max && abs(vertex.point.x - right_max->x) < eps && abs(vertex.point.y - right_max->y) < eps) ||
+                                    (bottom_min && abs(vertex.point.x - bottom_min->x) < eps && abs(vertex.point.y - bottom_min->y) < eps) ||
+                                    (bottom_max && abs(vertex.point.x - bottom_max->x) < eps && abs(vertex.point.y - bottom_max->y) < eps) ||
+                                    (top_min && abs(vertex.point.x - top_min->x) < eps && abs(vertex.point.y - top_min->y) < eps) ||
+                                    (top_max && abs(vertex.point.x - top_max->x) < eps && abs(vertex.point.y - top_max->y) < eps)) {
+                                    should_consider = true;
+                                }
+                            }
+
+                            if (should_consider &&
+                                current.point.distance_to(vertex.point) < query_point.distance_to(vertex.point)) {
+                                can_prune = false;
                                 break;
                             }
                         }
-
-                        if (!exists) {
-                            Vertex new_vertex(intersection, true);
-                            // Count how many existing bisectors can prune this new vertex
-                            for (const auto& bisector : bisectors) {
-                                if (!bisector.is_on_valid_side(intersection)) {
-                                    new_vertex.pruning_count++;
-                                }
-                            }
-                            vertices.push_back(new_vertex);
-                        }
                     }
 
-                    // Find intersections with existing bisectors
-                    for (const auto& existing_bisector : bisectors) {
-                        Point intersection;
-                        if (find_line_intersection(new_bisector, existing_bisector, intersection)) {
-                            // Check if intersection is within space boundaries
-                            if (intersection.x >= space_boundaries.min_x &&
-                                intersection.x <= space_boundaries.max_x &&
-                                intersection.y >= space_boundaries.min_y &&
-                                intersection.y <= space_boundaries.max_y) {
+                    if (!can_prune){
+                        Line new_bisector = perpendicular_bisector(query_point, current.point);
 
-                                // Check if this intersection point already exists
-                                bool exists = false;
-                                for (const auto& vertex : vertices) {
-                                    if (abs(vertex.point.x - intersection.x) < 1e-9 &&
-                                        abs(vertex.point.y - intersection.y) < 1e-9) {
-                                        exists = true;
-                                        break;
+                        // Update vertex pruning counts for existing vertices
+                        for (auto& vertex : vertices) {
+                            if (!new_bisector.is_on_valid_side(vertex.point)) {
+                                vertex.pruning_count++;
+                            }
+                        }
+
+                        // Find intersections with space boundaries
+                        vector<Point> boundary_intersections = find_line_rectangle_intersections(
+                            new_bisector, space_boundaries);
+
+                        // Add new intersection vertices
+                        for (const auto& intersection : boundary_intersections) {
+                            // Check if this intersection point already exists (within tolerance)
+                            bool exists = false;
+                            for (const auto& vertex : vertices) {
+                                if (abs(vertex.point.x - intersection.x) < 1e-9 &&
+                                    abs(vertex.point.y - intersection.y) < 1e-9) {
+                                    exists = true;
+                                    break;
+                                }
+                            }
+
+                            if (!exists) {
+                                Vertex new_vertex(intersection, true);
+                                // Count how many existing bisectors can prune this new vertex
+                                for (const auto& bisector : bisectors) {
+                                    if (!bisector.is_on_valid_side(intersection)) {
+                                        new_vertex.pruning_count++;
                                     }
                                 }
+                                new_vertex.dist_to_q = intersection.distance_to(query_point);
+                                vertices.push_back(new_vertex);
+                            }
+                        }
 
-                                if (!exists) {
-                                    Vertex new_vertex(intersection, false);
-                                    // Count how many bisectors can prune this new vertex
-                                    for (const auto& bisector : bisectors) {
-                                        if (!bisector.is_on_valid_side(intersection)) {
-                                            new_vertex.pruning_count++;
+                        // Find intersections with existing bisectors
+                        for (const auto& existing_bisector : bisectors) {
+                            Point intersection;
+                            if (find_line_intersection(new_bisector, existing_bisector, intersection)) {
+                                // Check if intersection is within space boundaries
+                                if (intersection.x >= space_boundaries.min_x &&
+                                    intersection.x <= space_boundaries.max_x &&
+                                    intersection.y >= space_boundaries.min_y &&
+                                    intersection.y <= space_boundaries.max_y) {
+
+                                    // Check if this intersection point already exists
+                                    bool exists = false;
+                                    for (const auto& vertex : vertices) {
+                                        if (abs(vertex.point.x - intersection.x) < 1e-9 &&
+                                            abs(vertex.point.y - intersection.y) < 1e-9) {
+                                            exists = true;
+                                            break;
                                         }
                                     }
-                                    vertices.push_back(new_vertex);
+
+                                    if (!exists) {
+                                        Vertex new_vertex(intersection, false);
+                                        // Count how many bisectors can prune this new vertex
+                                        for (const auto& bisector : bisectors) {
+                                            if (!bisector.is_on_valid_side(intersection)) {
+                                                new_vertex.pruning_count++;
+                                            }
+                                        }
+                                        new_vertex.dist_to_q = intersection.distance_to(query_point);
+                                        vertices.push_back(new_vertex);
+                                    }
                                 }
                             }
                         }
+
+                        double dist_bisector_q = min_distance_to_line(query_point,new_bisector);
+                        if (dist_bisector_q < neares_bisector_dist){
+                            neares_bisector_dist = dist_bisector_q;
+                        }
+                        bisectors.push_back(new_bisector);
+
+                        // Remove vertices with pruning_count >= k (they cannot be part of the RkNN region)
+                        vertices.erase(
+                            remove_if(vertices.begin(), vertices.end(),
+                                [k](const Vertex& v) {
+                                    return v.pruning_count >= (int)k;
+                                }),
+                            vertices.end()
+                        );
+
+                        // Find the largest dist_to_q among remaining vertices
+                        furthest_vertex_dist = 0.0;
+                        for (const auto& vertex : vertices) {
+                            if (vertex.dist_to_q > furthest_vertex_dist) {
+                                furthest_vertex_dist = vertex.dist_to_q;
+                            }
+                        }
                     }
-
-                    bisectors.push_back(new_bisector);
-
-                    // Remove vertices with pruning_count >= k (they cannot be part of the RkNN region)
-                    vertices.erase(
-                        remove_if(vertices.begin(), vertices.end(),
-                            [k](const Vertex& v) {
-                                return v.pruning_count >= (int)k;
-                            }),
-                        vertices.end()
-                    );
                 }
             } else {
                 // This is a node - check if it can be pruned by existing bisectors
                 bool can_prune = true;
-
-                // Calculate minimum distance from current node to vertices with pruning_count = k-1
-                // or extreme boundary points with pruning_count < k
                 Rectangle node_mbr = current.node->get_mbr();
+                double mbr_dist_q = min_distance_to_rect(query_point, node_mbr);
 
-                // First, identify extreme points on each boundary edge
-                // For each boundary edge, we need the two points with minimum and maximum coordinate along that edge
-                Point* left_min = nullptr;   // Leftmost point with min y on left boundary
-                Point* left_max = nullptr;   // Leftmost point with max y on left boundary
-                Point* right_min = nullptr;  // Rightmost point with min y on right boundary
-                Point* right_max = nullptr;  // Rightmost point with max y on right boundary
-                Point* bottom_min = nullptr; // Bottom point with min x on bottom boundary
-                Point* bottom_max = nullptr; // Bottom point with max x on bottom boundary
-                Point* top_min = nullptr;    // Top point with min x on top boundary
-                Point* top_max = nullptr;    // Top point with max x on top boundary
-
-                const double eps = 1e-9;  // Tolerance for boundary checking
-
-                // Find extreme points among boundary vertices with pruning_count < k
-                for (auto& vertex : vertices) {
-                    if (vertex.is_boundary && vertex.pruning_count < (int)k) {
-                        // Check which boundary this vertex is on
-                        if (abs(vertex.point.x - space_boundaries.min_x) < eps) {
-                            // Left boundary
-                            if (!left_min || vertex.point.y < left_min->y) {
-                                left_min = &vertex.point;
-                            }
-                            if (!left_max || vertex.point.y > left_max->y) {
-                                left_max = &vertex.point;
-                            }
-                        }
-                        if (abs(vertex.point.x - space_boundaries.max_x) < eps) {
-                            // Right boundary
-                            if (!right_min || vertex.point.y < right_min->y) {
-                                right_min = &vertex.point;
-                            }
-                            if (!right_max || vertex.point.y > right_max->y) {
-                                right_max = &vertex.point;
-                            }
-                        }
-                        if (abs(vertex.point.y - space_boundaries.min_y) < eps) {
-                            // Bottom boundary
-                            if (!bottom_min || vertex.point.x < bottom_min->x) {
-                                bottom_min = &vertex.point;
-                            }
-                            if (!bottom_max || vertex.point.x > bottom_max->x) {
-                                bottom_max = &vertex.point;
-                            }
-                        }
-                        if (abs(vertex.point.y - space_boundaries.max_y) < eps) {
-                            // Top boundary
-                            if (!top_min || vertex.point.x < top_min->x) {
-                                top_min = &vertex.point;
-                            }
-                            if (!top_max || vertex.point.x > top_max->x) {
-                                top_max = &vertex.point;
-                            }
-                        }
-                    }
+                if (mbr_dist_q > 2 * furthest_vertex_dist) {
+                    can_prune = true;
                 }
+                else if (mbr_dist_q < 2 * neares_bisector_dist) {
+                    can_prune = false;
+                }
+                else {
+                    // Shared extreme point finding and vertex checking logic
+                    const double eps = 1e-9;
 
-                for (const auto& vertex : vertices) {
-                    bool should_consider = false;
+                    // First, identify extreme points on each boundary edge
+                    Point* left_min = nullptr;   // Leftmost point with min y on left boundary
+                    Point* left_max = nullptr;   // Leftmost point with max y on left boundary
+                    Point* right_min = nullptr;  // Rightmost point with min y on right boundary
+                    Point* right_max = nullptr;  // Rightmost point with max y on right boundary
+                    Point* bottom_min = nullptr; // Bottom point with min x on bottom boundary
+                    Point* bottom_max = nullptr; // Bottom point with max x on bottom boundary
+                    Point* top_min = nullptr;    // Top point with min x on top boundary
+                    Point* top_max = nullptr;    // Top point with max x on top boundary
 
-                    // Condition 1: vertex with pruning_count == k-1
-                    if (vertex.pruning_count == (int)k - 1) {
-                        should_consider = true;
+                    // Find extreme points among boundary vertices with pruning_count < k
+                    for (auto& vertex : vertices) {
+                        if (vertex.is_boundary && vertex.pruning_count < (int)k) {
+                            // Check which boundary this vertex is on
+                            if (abs(vertex.point.x - space_boundaries.min_x) < eps) {
+                                // Left boundary
+                                if (!left_min || vertex.point.y < left_min->y) {
+                                    left_min = &vertex.point;
+                                }
+                                if (!left_max || vertex.point.y > left_max->y) {
+                                    left_max = &vertex.point;
+                                }
+                            }
+                            if (abs(vertex.point.x - space_boundaries.max_x) < eps) {
+                                // Right boundary
+                                if (!right_min || vertex.point.y < right_min->y) {
+                                    right_min = &vertex.point;
+                                }
+                                if (!right_max || vertex.point.y > right_max->y) {
+                                    right_max = &vertex.point;
+                                }
+                            }
+                            if (abs(vertex.point.y - space_boundaries.min_y) < eps) {
+                                // Bottom boundary
+                                if (!bottom_min || vertex.point.x < bottom_min->x) {
+                                    bottom_min = &vertex.point;
+                                }
+                                if (!bottom_max || vertex.point.x > bottom_max->x) {
+                                    bottom_max = &vertex.point;
+                                }
+                            }
+                            if (abs(vertex.point.y - space_boundaries.max_y) < eps) {
+                                // Top boundary
+                                if (!top_min || vertex.point.x < top_min->x) {
+                                    top_min = &vertex.point;
+                                }
+                                if (!top_max || vertex.point.x > top_max->x) {
+                                    top_max = &vertex.point;
+                                }
+                            }
+                        }
                     }
-                    // Condition 2: extreme boundary points with pruning_count < k
-                    else if (vertex.is_boundary && vertex.pruning_count < (int)k) {
-                        // Check if this vertex is one of the extreme points
-                        if ((left_min && abs(vertex.point.x - left_min->x) < eps && abs(vertex.point.y - left_min->y) < eps) ||
-                            (left_max && abs(vertex.point.x - left_max->x) < eps && abs(vertex.point.y - left_max->y) < eps) ||
-                            (right_min && abs(vertex.point.x - right_min->x) < eps && abs(vertex.point.y - right_min->y) < eps) ||
-                            (right_max && abs(vertex.point.x - right_max->x) < eps && abs(vertex.point.y - right_max->y) < eps) ||
-                            (bottom_min && abs(vertex.point.x - bottom_min->x) < eps && abs(vertex.point.y - bottom_min->y) < eps) ||
-                            (bottom_max && abs(vertex.point.x - bottom_max->x) < eps && abs(vertex.point.y - bottom_max->y) < eps) ||
-                            (top_min && abs(vertex.point.x - top_min->x) < eps && abs(vertex.point.y - top_min->y) < eps) ||
-                            (top_max && abs(vertex.point.x - top_max->x) < eps && abs(vertex.point.y - top_max->y) < eps)) {
+
+                    // Check vertices to determine if we can prune
+                    for (const auto& vertex : vertices) {
+                        bool should_consider = false;
+
+                        // Condition 1: vertex with pruning_count == k-1
+                        if (vertex.pruning_count == (int)k - 1) {
                             should_consider = true;
                         }
-                    }
+                        // Condition 2: extreme boundary points with pruning_count < k
+                        else if (vertex.is_boundary && vertex.pruning_count < (int)k) {
+                            // Check if this vertex is one of the extreme points
+                            if ((left_min && abs(vertex.point.x - left_min->x) < eps && abs(vertex.point.y - left_min->y) < eps) ||
+                                (left_max && abs(vertex.point.x - left_max->x) < eps && abs(vertex.point.y - left_max->y) < eps) ||
+                                (right_min && abs(vertex.point.x - right_min->x) < eps && abs(vertex.point.y - right_min->y) < eps) ||
+                                (right_max && abs(vertex.point.x - right_max->x) < eps && abs(vertex.point.y - right_max->y) < eps) ||
+                                (bottom_min && abs(vertex.point.x - bottom_min->x) < eps && abs(vertex.point.y - bottom_min->y) < eps) ||
+                                (bottom_max && abs(vertex.point.x - bottom_max->x) < eps && abs(vertex.point.y - bottom_max->y) < eps) ||
+                                (top_min && abs(vertex.point.x - top_min->x) < eps && abs(vertex.point.y - top_min->y) < eps) ||
+                                (top_max && abs(vertex.point.x - top_max->x) < eps && abs(vertex.point.y - top_max->y) < eps)) {
+                                should_consider = true;
+                            }
+                        }
 
-                    if (should_consider &&
-                        min_distance_to_rect(vertex.point, node_mbr) < query_point.distance_to(vertex.point)
-                       ) {
-                        can_prune = false;
-                        break;
+                        if (should_consider &&
+                            min_distance_to_rect(vertex.point, node_mbr) < query_point.distance_to(vertex.point)) {
+                            can_prune = false;
+                            break;
+                        }
                     }
                 }
 
@@ -523,7 +662,8 @@ int main( int argc, char* argv[] )
                 }
             }
         }
-        // cout << "Total bisectors created: " << bisectors.size() << endl << endl;
+
+        cout << "Total bisectors created: " << bisectors.size() << endl << endl;
 
         uint32_t n_meshes = bisectors.size();
         vector<TriangleMesh> meshes(n_meshes);

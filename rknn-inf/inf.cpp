@@ -579,7 +579,6 @@ int main( int argc, char* argv[] )
             }
         }
 
-        // // Final vertex statistics
         end_time = get_wall_time();
         filtering_time = end_time - start_time;
         cout << "Filtering time: " << filtering_time << "[s]." << endl;

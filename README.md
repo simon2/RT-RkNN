@@ -59,7 +59,7 @@ export OptiX_INSTALL_DIR=/path/to/optix-7.7
 ### 2. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/RT-RkNN.git
+git clone git@github.com:simon2/RT-RkNN.git
 cd RT-RkNN
 ```
 

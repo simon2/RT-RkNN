@@ -26,14 +26,13 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/rknn_kernel.cu
+  PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ
+  )
 
-OPTIX_add_sample_executable( rknn-rt-inf target_name
-  RStarTree2D.h
-  RStarTree2D.cpp
-  inf.h
-  rt.cpp
-  rt.cu
-  rt.h
+OPTIX_add_sample_executable( rknn-naive-gpu target_name
+  rknn.cpp
+  rknn_kernel.cu
   )
 
 target_link_libraries( ${target_name}

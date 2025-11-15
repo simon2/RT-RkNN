@@ -26,12 +26,18 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/inf_kernel.cu
+  PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ
+  )
 
-OPTIX_add_sample_executable( rknn-rt-all target_name
-  rt.cpp
-  point.h
-  rt.cu
-  rt.h
+OPTIX_add_sample_executable( rknn-inf-gpu target_name
+  inf.h
+  inf.cpp
+  inf_kernel.h
+  inf_kernel.cu
+  # inf_eva.cpp
+  RStarTree2D.h
+  RStarTree2D.cpp
   )
 
 target_link_libraries( ${target_name}

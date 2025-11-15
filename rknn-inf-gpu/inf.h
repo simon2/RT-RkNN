@@ -238,15 +238,15 @@ void dfs_rknn_traverse(shared_ptr<RStarNode> node, const vector<Line>& bisectors
     }
 }
 
-// void get_rknn_candidates(
-//     RStarTree* rtree,
-//     const vector<Line>& bisectors,
-//     vector<Point>& rknn_candidates,
-//     int k
-// ) {
-//     rknn_candidates.clear();
-//     dfs_rknn_traverse(rtree->get_root(), bisectors, rknn_candidates, k);
-// }
+void get_rknn_candidates(
+    RStarTree* rtree,
+    const vector<Line>& bisectors,
+    vector<Point>& rknn_candidates,
+    int k
+) {
+    rknn_candidates.clear();
+    dfs_rknn_traverse(rtree->get_root(), bisectors, rknn_candidates, k);
+}
 
 // Priority Queue Entry for R*-tree traversal with bisector creation
 struct PQEntry {

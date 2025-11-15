@@ -1,10 +1,10 @@
 # RT-RkNN
 
-GPU Accelerated Reverse k-Nearest Neighbor Query using Ray Tracing Cores
+Accelerating Reverse k Nearest Neighbor Queries using Ray Tracing Cores
 
 ## Overview
 
-RT-RkNN is a high-performance implementation of reverse k-nearest neighbor (RkNN) queries leveraging NVIDIA GPU ray tracing cores for acceleration. This project explores various algorithmic approaches to efficiently solve RkNN queries on modern GPUs equipped with Ray Tracing (RT) cores, providing significant speedups over traditional CPU-based methods.
+RT-RkNN is a high-performance implementation of reverse k-nearest neighbor (RkNN) queries leveraging GPU ray tracing cores for acceleration. This project explores various algorithmic approaches to efficiently solve RkNN queries on modern GPUs equipped with Ray Tracing (RT) cores, providing significant speedups over traditional CPU and GPU-based methods.
 
 The reverse k-nearest neighbor query finds all points in a dataset that have a given query point among their k nearest neighbors. This is particularly useful in applications such as:
 - Location-based services and spatial databases
@@ -14,15 +14,16 @@ The reverse k-nearest neighbor query finds all points in a dataset that have a g
 
 ## Key Features
 
-- **Hardware Acceleration**: Utilizes NVIDIA RT cores for ray tracing-based spatial queries
-- **Multiple Algorithm Implementations**: Compare different approaches to RkNN queries
-- **GPU Optimization**: Leverages CUDA for parallel processing
+- **Hardware Acceleration**: Utilizes RT cores for ray tracing-based spatial queries
+- **Multiple Algorithm Implementations**: 9 different approaches including GPU-accelerated variants
+- **Influence Zone Pruning**: Advanced geometric pruning using perpendicular bisectors
+- **R\*-tree Spatial Indexing**: Efficient spatial data structures for query optimization
 
 ## Requirements
 
 ### System Requirements
 - NVIDIA GPU with RT cores (RTX 20 series or newer recommended)
-- Linux operating system (tested on Ubuntu)
+- Linux operating system (tested on Ubuntu 22.04.5 LTS)
 
 ### Software Dependencies
 - **C++11** or higher
@@ -68,53 +69,90 @@ cd RT-RkNN
 mkdir -p build
 cd build
 cmake ..
-make -j$(nproc)
+make
 ```
 
-The compiled executables will be available in the `build/` directory.
+The compiled executables will be available in the `build/bin` directory.
 
 ## Algorithm Implementations
 
-The project includes several RkNN query implementations, each with different optimization strategies:
+The project includes **9 RkNN query implementations**, each with different optimization strategies:
 
-### 1. **rknn-rt** (Main Ray Tracing (RT) Approach)
+### 1. **rknn-rt** (Main Ray Tracing Approach) - MOST OPTIMIZED
 - Primary ray tracing-based implementation
-- Utilizes RT cores for accelerated spatial queries
-- Optimized triangle mesh construction for query regions
+- Utilizes NVIDIA OptiX RT cores
+- Optimized triangle mesh construction
 - Best overall performance for most datasets
 
-### 2. **rknn-tpl** (TPL Algorithm)
-- Implementation of the Two-Phase List (TPL) algorithm
-- Traditional approach for RkNN queries
+### 2. **rknn-rt-direct** (Ray Tracing w/o meshes selection)
+- Simplified ray tracing approach
+- Utilizes NVIDIA OptiX RT cores
+- Direct scene construction without complex preprocessing
+
+### 3. **rknn-inf** (Influence Zone)
+- CPU-based Influence Zone algorithm
+- Perpendicular bisector-based pruning
+- R*-tree traversal with line-based spatial filtering
 - Useful for performance comparison baseline
 
-### 3. **rknn-inf** (InfZone)
-- Influence Zone-based RkNN algorithm
-- Computes influence zones for efficient query processing
-- Suitable for datasets with specific spatial distributions
+### 4. **rknn-inf-gpu** (Influence Zone - GPU Accelerated)
+- GPU-accelerated influence zone computation
+- CUDA kernels for parallel bisector validation
+- Device memory-optimized bisector checking
 
-### 4. **rknn-rt-all** (RT Approach with scene of ALL facilities)
-- Creates triangle meshes on both far and near sides
-- More comprehensive spatial coverage
-- Higher accuracy at the cost of additional computation
+### 7. **rknn-tpl** (TPL)
+- Implementation of the classic TPL algorithm
+- The first half-space pruning method
+- Perpendicular bisector computation with R*-tree
+- Useful for performance comparison baseline
 
-### 5. **rknn-naive**
-- Basic brute-force implementation
+### 8. **rknn-slice** (SLICE)
+- Divides space into 12 angular partitions (30° each)
+- The state-of-the-art method using region-based pruning
+- Useful for performance comparison baseline
+
+### 9. **rknn-rtree** (Pure R*-tree Approach)
+- Pure R*-tree based spatial indexing
+- Classic data structure for spatial queries
+- Simpler implementation for baseline comparison
+
+### 5. **rknn-naive** (Brute Force)
+- Basic CPU brute-force implementation
 - Reference implementation for correctness verification
 - Useful for small datasets and debugging
 
-### 6. **rknn-rtree**
-- R-tree based spatial indexing approach
-- Classic data structure for spatial queries
-- Good for datasets with hierarchical structure
+### 6. **rknn-naive-gpu** (Brute Force - GPU Accelerated)
+- GPU-accelerated brute force baseline
+- Parallel distance computation using CUDA
+- k-nearest neighbor finding on GPU
 
 ## Usage
 
 ### Basic Usage
 
-Run the main RT-based implementation:
+Run different algorithm implementations:
+
 ```bash
+# Main ray tracing implementation (recommended)
 ./build/rknn-rt [options]
+
+# GPU-accelerated influence zone (newest)
+./build/rknn-inf-gpu [options]
+
+# GPU-accelerated brute force baseline
+./build/rknn-naive-gpu [options]
+
+# Direct ray tracing variant
+./build/rknn-rt-direct [options]
+
+# Angular partition algorithm
+./build/rknn-slice [options]
+
+# Traditional algorithms
+./build/rknn-tpl [options]
+./build/rknn-inf [options]
+./build/rknn-rtree [options]
+./build/rknn-naive [options]
 ```
 
 ### Command Line Options
@@ -123,8 +161,9 @@ Run the main RT-based implementation:
 # Example usage with custom parameters
 ./build/rknn-rt -if dataset.txt -k 5 -q 10
 
-# Run TPL algorithm
-./build/rknn-tpl -if dataset.txt -k 5 -q 10
+# GPU-accelerated variants
+./build/rknn-inf-gpu -if dataset.txt -k 5 -q 10
+./build/rknn-naive-gpu -if dataset.txt -k 5 -q 10
 ```
 
 ### Input Data Format

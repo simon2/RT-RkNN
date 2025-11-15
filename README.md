@@ -72,7 +72,7 @@ cmake ..
 make
 ```
 
-The compiled executables will be available in the `build/bin` directory.
+The compiled executables will be available in the `/bin` directory.
 
 ## Algorithm Implementations
 
@@ -133,37 +133,20 @@ The project includes **9 RkNN query implementations**, each with different optim
 Run different algorithm implementations:
 
 ```bash
-# Main ray tracing implementation (recommended)
-./build/rknn-rt [options]
+# RT-RkNN
+./bin/rknn-rt [options]
 
-# GPU-accelerated influence zone (newest)
-./build/rknn-inf-gpu [options]
+# SLICE
+./bin/rknn-slice [options]
 
-# GPU-accelerated brute force baseline
-./build/rknn-naive-gpu [options]
-
-# Direct ray tracing variant
-./build/rknn-rt-direct [options]
-
-# Angular partition algorithm
-./build/rknn-slice [options]
-
-# Traditional algorithms
-./build/rknn-tpl [options]
-./build/rknn-inf [options]
-./build/rknn-rtree [options]
-./build/rknn-naive [options]
 ```
 
 ### Command Line Options
 
 ```bash
 # Example usage with custom parameters
-./build/rknn-rt -if dataset.txt -k 5 -q 10
+./bin/rknn-rt -if dataset.txt -k 5 -q 10
 
-# GPU-accelerated variants
-./build/rknn-inf-gpu -if dataset.txt -k 5 -q 10
-./build/rknn-naive-gpu -if dataset.txt -k 5 -q 10
 ```
 
 ### Input Data Format

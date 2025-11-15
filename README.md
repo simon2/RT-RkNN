@@ -78,7 +78,7 @@ The compiled executables will be available in the `build/bin` directory.
 
 The project includes **9 RkNN query implementations**, each with different optimization strategies:
 
-### 1. **rknn-rt** (Main Ray Tracing Approach) - MOST OPTIMIZED
+### 1. **rknn-rt** (Main Ray Tracing Approach)
 - Primary ray tracing-based implementation
 - Utilizes NVIDIA OptiX RT cores
 - Optimized triangle mesh construction
@@ -100,28 +100,28 @@ The project includes **9 RkNN query implementations**, each with different optim
 - CUDA kernels for parallel bisector validation
 - Device memory-optimized bisector checking
 
-### 7. **rknn-tpl** (TPL)
+### 5. **rknn-tpl** (TPL)
 - Implementation of the classic TPL algorithm
 - The first half-space pruning method
 - Perpendicular bisector computation with R*-tree
 - Useful for performance comparison baseline
 
-### 8. **rknn-slice** (SLICE)
+### 6. **rknn-slice** (SLICE)
 - Divides space into 12 angular partitions (30° each)
 - The state-of-the-art method using region-based pruning
 - Useful for performance comparison baseline
 
-### 9. **rknn-rtree** (Pure R*-tree Approach)
+### 7. **rknn-rtree** (Pure R*-tree Approach)
 - Pure R*-tree based spatial indexing
 - Classic data structure for spatial queries
 - Simpler implementation for baseline comparison
 
-### 5. **rknn-naive** (Brute Force)
+### 8. **rknn-naive** (Brute Force)
 - Basic CPU brute-force implementation
 - Reference implementation for correctness verification
 - Useful for small datasets and debugging
 
-### 6. **rknn-naive-gpu** (Brute Force - GPU Accelerated)
+### 9. **rknn-naive-gpu** (Brute Force - GPU Accelerated)
 - GPU-accelerated brute force baseline
 - Parallel distance computation using CUDA
 - k-nearest neighbor finding on GPU

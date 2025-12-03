@@ -35,7 +35,6 @@ OPTIX_add_sample_executable( rknn-inf-gpu target_name
   inf.cpp
   inf_kernel.h
   inf_kernel.cu
-  # inf_eva.cpp
   RStarTree2D.h
   RStarTree2D.cpp
   )

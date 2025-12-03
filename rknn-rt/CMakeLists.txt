@@ -32,7 +32,6 @@ OPTIX_add_sample_executable( rknn-rt target_name
   RStarTree2D.cpp
   inf.h
   rt.cpp
-  point.h
   rt.cu
   rt.h
   )

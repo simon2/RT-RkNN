@@ -537,15 +537,15 @@ endfunction()
 # Just make sure you rename all the occurances of the sample's name in the C code as well
 # and the CMakeLists.txt file.
 
-add_subdirectory( test )
 add_subdirectory( rknn-rt )
-add_subdirectory( rknn-rt-inf )
 add_subdirectory( rknn-rt-direct )
-add_subdirectory( rknn-rt-all )
+add_subdirectory( rknn-rt-conservative )
 add_subdirectory( rknn-tpl )
 add_subdirectory( rknn-inf )
+add_subdirectory( rknn-inf-gpu )
 add_subdirectory( rknn-slice )
 add_subdirectory( rknn-naive )
+add_subdirectory( rknn-naive-gpu )
 add_subdirectory( rknn-rtree )
 
 # Our sutil library.  The rules to build it are found in the subdirectory.

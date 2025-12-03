@@ -74,6 +74,40 @@ make
 
 The compiled executables will be available in the `/bin` directory.
 
+## Data Preprocessing
+
+### Option 1: Generate Random Data
+
+Use `random_gen.py` to generate synthetic random datasets:
+
+```bash
+cd data
+python random_gen.py
+```
+
+This generates random 2D points with coordinates in the range [0, 1000].
+
+### Option 2: Use Real-World Datasets
+
+Download road network datasets from the [9th DIMACS Implementation Challenge](https://www.diag.uniroma1.it/~challenge9/download.shtml), then use `preprocess.py` to convert them:
+
+```bash
+cd data
+python preprocess.py <input_file> <num_facilities> [-o output_file]
+```
+
+**Arguments:**
+- `input_file`: Path to the downloaded `.co` coordinate file
+- `num_facilities`: Number of points to randomly select as facilities
+- `-o output_file`: (Optional) Custom output filename
+
+**Example:**
+```bash
+python preprocess.py USA-road-d.NY.co 1000 -o NY_f1000.co
+```
+
+The script normalizes coordinates and splits data into facilities and users for RkNN queries.
+
 ## Algorithm Implementations
 
 The project includes **9 RkNN query implementations**, each with different optimization strategies:
@@ -84,44 +118,49 @@ The project includes **9 RkNN query implementations**, each with different optim
 - Optimized triangle mesh construction
 - Best overall performance for most datasets
 
-### 2. **rknn-rt-direct** (Ray Tracing w/o meshes selection)
+### 2. **rknn-rt-conservative** (Ray Tracing w/o meshes selection)
 - Simplified ray tracing approach
 - Utilizes NVIDIA OptiX RT cores
-- Direct scene construction without complex preprocessing
+- Construct scene with conservative pruning
 
-### 3. **rknn-inf** (Influence Zone)
+### 3. **rknn-rt-direct** (Ray Tracing w/o meshes selection)
+- Simplified ray tracing approach
+- Utilizes NVIDIA OptiX RT cores
+- Direct scene construction without pruning
+
+### 4. **rknn-inf** (Influence Zone)
 - CPU-based Influence Zone algorithm
 - Perpendicular bisector-based pruning
 - R*-tree traversal with line-based spatial filtering
 - Useful for performance comparison baseline
 
-### 4. **rknn-inf-gpu** (Influence Zone - GPU Accelerated)
+### 5. **rknn-inf-gpu** (Influence Zone - GPU Accelerated)
 - GPU-accelerated influence zone computation
 - CUDA kernels for parallel bisector validation
 - Device memory-optimized bisector checking
 
-### 5. **rknn-tpl** (TPL)
+### 6. **rknn-tpl** (TPL)
 - Implementation of the classic TPL algorithm
 - The first half-space pruning method
 - Perpendicular bisector computation with R*-tree
 - Useful for performance comparison baseline
 
-### 6. **rknn-slice** (SLICE)
+### 7. **rknn-slice** (SLICE)
 - Divides space into 12 angular partitions (30° each)
 - The state-of-the-art method using region-based pruning
 - Useful for performance comparison baseline
 
-### 7. **rknn-rtree** (Pure R*-tree Approach)
+### 8. **rknn-rtree** (Pure R*-tree Approach)
 - Pure R*-tree based spatial indexing
 - Classic data structure for spatial queries
 - Simpler implementation for baseline comparison
 
-### 8. **rknn-naive** (Brute Force)
+### 9. **rknn-naive** (Brute Force)
 - Basic CPU brute-force implementation
 - Reference implementation for correctness verification
 - Useful for small datasets and debugging
 
-### 9. **rknn-naive-gpu** (Brute Force - GPU Accelerated)
+### 10. **rknn-naive-gpu** (Brute Force - GPU Accelerated)
 - GPU-accelerated brute force baseline
 - Parallel distance computation using CUDA
 - k-nearest neighbor finding on GPU

@@ -12,6 +12,7 @@ _deps
 CMakeUserPresets.json
 /build
 *.co
+*.png
 *.out
 
 # CLion

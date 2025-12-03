@@ -27,11 +27,13 @@
 #
 
 
-OPTIX_add_sample_executable( rknn-inf target_name
-  inf.h
-  inf.cpp
+OPTIX_add_sample_executable( rknn-rt-conservative target_name
   RStarTree2D.h
   RStarTree2D.cpp
+  inf.h
+  rt.cpp
+  rt.cu
+  rt.h
   )
 
 target_link_libraries( ${target_name}

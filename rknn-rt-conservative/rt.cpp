@@ -115,6 +115,77 @@ double get_wall_time()
   return (double)time.tv_sec + (double)time.tv_usec * .000001;
 }
 
+void build_bisectors(shared_ptr<RStarNode> root, vector<int>& visitedID, vector<Line>& bisectors, const Point& query_point, double furthest_vertex_dist){
+    // Use a stack for DFS traversal
+    stack<shared_ptr<RStarNode>> dfs_stack;
+
+    // Start DFS from root
+    if (root) {
+        dfs_stack.push(root);
+    }
+
+    // Perform DFS traversal
+    while (!dfs_stack.empty()) {
+        shared_ptr<RStarNode> current_node = dfs_stack.top();
+        dfs_stack.pop();
+
+        if (current_node->is_leaf) {
+            // Process leaf node - check each point
+            for (const auto& entry : current_node->entries) {
+                // Skip if this point was already visited
+                bool already_visited = false;
+                for (int id : visitedID) {
+                    if (id == entry.point.id) {
+                        already_visited = true;
+                        break;
+                    }
+                }
+                if (already_visited) {
+                    continue;
+                }
+
+                // Skip the query point itself
+                if (entry.point.id == query_point.id) {
+                    continue;
+                }
+
+                // Calculate distance from point to query_point
+                double dist_to_query = entry.point.distance_to(query_point);
+
+                // Check if distance is more than 2 times furthest_vertex_dist
+                if (dist_to_query > 2 * furthest_vertex_dist) {
+                    // Ignore this point - don't create bisector
+                    continue;
+                }
+
+                // Point passes the distance check - create perpendicular bisector
+                Line new_bisector = perpendicular_bisector(query_point, entry.point);
+                bisectors.push_back(new_bisector);
+            }
+        } else {
+            // Process non-leaf node - check MBR distance
+            for (const auto& entry : current_node->entries) {
+                if (!entry.child) {
+                    continue;
+                }
+
+                // Calculate minimum distance from MBR to query_point
+                Rectangle node_mbr = entry.child->get_mbr();
+                double mbr_dist_to_query = min_distance_to_rect(query_point, node_mbr);
+
+                // Check if MBR distance is more than 2 times furthest_vertex_dist
+                if (mbr_dist_to_query > 2 * furthest_vertex_dist) {
+                    // Ignore this subtree - don't go deeper
+                    continue;
+                }
+
+                // MBR passes the distance check - add child to stack for further exploration
+                dfs_stack.push(entry.child);
+            }
+        }
+    }
+}
+
 /* end custom functions */
 
 
@@ -290,6 +361,8 @@ int main( int argc, char* argv[] )
         start_time = get_wall_time();
         Point query_point(fac[q].x, fac[q].y, fac[q].id);
         vector<Line> bisectors;
+        vector<int> visitedID;
+        int bisector_cnt = 0;
 
         // Initialize vertex list with the four corners of space boundaries
         vector<Vertex> vertices;
@@ -331,8 +404,11 @@ int main( int argc, char* argv[] )
         }
         double neares_bisector_dist = numeric_limits<double>::max();
 
+        int bisector_threshold = min( fac_cnt, (k*(int)log10(fac_cnt))-10 );
+        cout << "bisector_threshold: " << bisector_threshold << endl;
+
         // Process entries from priority queue
-        while (!pq.empty()) {
+        while (!pq.empty() && bisector_cnt <= bisector_threshold) {
             PQEntry current = pq.top();
             pq.pop();
 
@@ -342,6 +418,7 @@ int main( int argc, char* argv[] )
                     // Common pruning logic for points
                     bool can_prune = true;
                     double dist_q = current.point.distance_to(query_point);
+                    visitedID.push_back(current.point.id);
 
                     if (dist_q > 2 * furthest_vertex_dist) {
                         can_prune = true;
@@ -516,6 +593,7 @@ int main( int argc, char* argv[] )
                             neares_bisector_dist = dist_bisector_q;
                         }
                         bisectors.push_back(new_bisector);
+                        bisector_cnt++;
 
                         // Remove vertices with pruning_count >= k (they cannot be part of the RkNN region)
                         vertices.erase(
@@ -662,7 +740,9 @@ int main( int argc, char* argv[] )
                 }
             }
         }
-
+        if (bisector_cnt >= bisector_threshold){
+            build_bisectors(root, visitedID, bisectors, query_point, furthest_vertex_dist);
+        }
         cout << "Total bisectors created: " << bisectors.size() << endl << endl;
 
         uint32_t n_meshes = bisectors.size();

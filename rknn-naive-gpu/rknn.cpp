@@ -317,7 +317,7 @@ int main( int argc, char* argv[] )
             if (i < argc - 1 )
             {
                 q = stoi(argv[++i]);
-                if (q < 0) 
+                if (q < 0)
                 {
                     cerr << "Invalid value for q: " << q << ". It must be a >= 0 number." << endl;
                     printUsageAndExit( argv[0] );
@@ -378,7 +378,7 @@ int main( int argc, char* argv[] )
 
         Point *usr = new Point[usr_cnt];
 
-        for (uint32_t i = 0; i < usr_cnt; ++i) 
+        for (uint32_t i = 0; i < usr_cnt; ++i)
         {
             infile >> usr[i].id;
             infile >> usr[i].x;
@@ -396,7 +396,7 @@ int main( int argc, char* argv[] )
         }
 
         NaiveSpatialDB usr_db;
-        for (uint32_t i = 0; i < usr_cnt; ++i) 
+        for (uint32_t i = 0; i < usr_cnt; ++i)
         {
             usr_db.insert(usr[i]);
         }
@@ -429,6 +429,6 @@ int main( int argc, char* argv[] )
         cerr << "Caught exception: " << e.what() << "\n";
         return 1;
     }
-    
+
     return 0;
 }

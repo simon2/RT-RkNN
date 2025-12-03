@@ -1,6 +1,6 @@
 # RT-RkNN
 
-Accelerating Reverse k Nearest Neighbor Queries using Ray Tracing Cores
+Reverse k Nearest Neighbor Queries as a Graphics Ray Casting Problem
 
 ## Overview
 
@@ -118,7 +118,7 @@ The project includes **9 RkNN query implementations**, each with different optim
 - Optimized triangle mesh construction
 - Best overall performance for most datasets
 
-### 2. **rknn-rt-conservative** (Ray Tracing w/o meshes selection)
+### 2. **rknn-rt-conservative** (Ray Tracing with conservative meshes selection)
 - Simplified ray tracing approach
 - Utilizes NVIDIA OptiX RT cores
 - Construct scene with conservative pruning
@@ -228,11 +228,10 @@ Results will be saved in the `build/log/` directory.
 
 If you use this work in your research, please cite:
 ```bibtex
-@software{rtrknn2024,
-  title = {RT-RkNN: GPU-Accelerated Reverse k-Nearest Neighbor Query using Ray Tracing Cores},
-  author = {Your Name},
-  year = {2024},
-  url = {https://github.com/yourusername/RT-RkNN}
+@processing{rtrknn2025,
+  title = {RT-RkNN: Reverse k Nearest Neighbor Queries as a Graphics Ray Casting Problem},
+  author = {Zhengyang Bai, Peng Chen, Mohamed Wahib},
+  year = {2025}
 }
 ``` -->
 

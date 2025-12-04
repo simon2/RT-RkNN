@@ -15,7 +15,7 @@ The reverse k-nearest neighbor query finds all points in a dataset that have a g
 ## Key Features
 
 - **Hardware Acceleration**: Utilizes RT cores for ray tracing-based spatial queries
-- **Multiple Algorithm Implementations**: 9 different approaches including GPU-accelerated variants
+- **Multiple Algorithm Implementations**: 10 different approaches including GPU-accelerated variants
 - **Influence Zone Pruning**: Advanced geometric pruning using perpendicular bisectors
 - **R\*-tree Spatial Indexing**: Efficient spatial data structures for query optimization
 
@@ -110,7 +110,7 @@ The script normalizes coordinates and splits data into facilities and users for 
 
 ## Algorithm Implementations
 
-The project includes **9 RkNN query implementations**, each with different optimization strategies:
+The project includes **10 RkNN query implementations**, each with different algorithms and/or optimization strategies:
 
 ### 1. **rknn-rt** (Main Ray Tracing Approach)
 - Primary ray tracing-based implementation
